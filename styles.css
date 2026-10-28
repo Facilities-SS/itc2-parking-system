@@ -580,3 +580,29 @@ svg.car.perm{color:#2C83D0} svg.car.temp{color:#F7941D} .slot.t-vip svg.car.temp
 .sp .mk-lead{stroke:#2B7BC4;stroke-width:2;stroke-dasharray:4 3} .sp .mk-dot{fill:#fff;stroke:#2B7BC4;stroke-width:2.5}
 .sp .b.bins{fill:#EAF3FA;stroke:#2B7BC4;stroke-width:1.4} .sp .b.post{fill:#FFF5E9;stroke:#F08A3C;stroke-width:1.6}
 @media (prefers-color-scheme:dark){.sp .b.bins{fill:#17283A} .sp .b.post{fill:#3A2A1C}}
+
+/* ===== หน้า วันนี้: สรุปจำนวนรถ (แคปหน้าจอส่ง รปภ.) ===== */
+.day-sum{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-md);padding:16px 18px;margin-bottom:16px;border-top:4px solid transparent;border-image:linear-gradient(90deg,#34BDB1,#2B7BC4 55%,#F7941D 80%,#EF5B24) 1;border-image-slice:1 0 0 0}
+.day-sum-h{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;align-items:baseline;margin-bottom:12px}
+.day-sum-h b{font-family:var(--f-sign);font-size:1.25rem}
+.day-sum-h span{color:var(--muted)}
+.day-sum-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.ds{background:var(--paper2);border-radius:var(--r-sm);padding:10px 12px}
+.ds b{display:block;font-family:var(--f-sign);font-size:1.8rem;line-height:1.1;color:var(--brand-ink,#1C5A97)}
+.ds span{font-size:.9rem;color:var(--ink)} .ds small{color:var(--muted)}
+.ds.tot{background:var(--sign-soft)} .ds.tot b{color:var(--orange2,#EF5B24)}
+.st-multi{background:#E6F4F2;color:#167D75}
+@media (prefers-color-scheme:dark){.st-multi{background:#16302D;color:#7FD6CC}}
+.dpick{margin-top:2px}
+#bDays{display:block;margin-top:4px}
+@media print{.req-act,.noprint{display:none!important}}
+
+.ds-tbl{width:100%;border-collapse:collapse;margin-top:14px;font-size:.95rem}
+.ds-tbl th{text-align:left;font-weight:600;color:var(--muted);font-size:.85rem;padding:6px 8px;border-bottom:1px solid var(--line)}
+.ds-tbl td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.ds-tbl td small{color:var(--muted)}
+.ds-tbl tr.ds-zone th{color:var(--ink);font-size:.95rem;padding-top:14px;background:transparent}
+.ds-tbl tr.ds-zone th small{color:var(--muted);font-weight:500}
+.ds-tbl tbody tr:last-child td{border-bottom:0}
+.ds-foot{margin-top:10px;font-size:.82rem;color:var(--muted)}
+.ds-detail{margin:6px 0 10px;font-size:1.05rem;color:var(--muted)}

@@ -102,6 +102,8 @@
         <div><h2>คำขอใช้ที่จอด</h2><p class="muted" id="todayLead"></p></div>
         <div class="row-gap">
           <input id="tDate" type="date" aria-label="วันที่">
+          <select id="tZone" aria-label="กรองสถานที่"></select>
+          <button class="btn ghost" data-act="copy-today" type="button">คัดลอกข้อความ</button>
           <button class="btn pri" data-act="new-temp" type="button">+ บันทึกคำขอ</button>
         </div>
       </div>
@@ -202,7 +204,16 @@
       <label class="f"><span>ทะเบียนรถ</span><input id="bPlate" maxlength="20" required autocomplete="off" placeholder="เช่น 1กข 1234"></label>
       <label class="f"><span>สถานที่</span><select id="bZone" required></select></label>
       <label class="f g-temp"><span>ประเภทผู้จอด</span><select id="bKind"></select></label>
-      <label class="f g-temp"><span>วันที่</span><input id="bDate" type="date" required></label>
+      <label class="f g-temp"><span>วันที่เริ่ม</span><input id="bDate" type="date" required></label>
+      <label class="f g-temp"><span>ถึงวันที่ <small class="muted">(ถ้าจองหลายวัน)</small></span><input id="bDateTo" type="date"></label>
+      <div class="f span2 g-temp"><span>จำนวนวัน</span>
+        <div class="tpick dpick" role="group" aria-label="เลือกจำนวนวันเร็ว">
+          <button type="button" data-act="dpick" data-d="0">วันเดียว</button>
+          <button type="button" data-act="dpick" data-d="6">1 สัปดาห์</button>
+          <button type="button" data-act="dpick" data-m="1">1 เดือน</button>
+          <button type="button" data-act="dpick" data-m="3">3 เดือน</button>
+          <button type="button" data-act="dpick" data-m="6">6 เดือน</button>
+        </div><small class="muted" id="bDays"></small></div>
       <label class="f g-temp"><span>เวลาที่ขอเข้า</span><input id="bFrom" type="time" required></label>
       <label class="f g-temp"><span>เวลาที่ขอออก</span><input id="bTo" type="time" required></label>
       <div class="f span2 g-temp"><span>ช่วงเวลาที่ขอใช้ (แตะเพื่อเลือกเร็ว หรือพิมพ์เวลาเองด้านบน)</span>
