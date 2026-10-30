@@ -884,6 +884,25 @@ function renderCheck() {
       <td>${esc(it.seen || '')}${it.note ? `<div class="sub">${esc(it.note)}</div>` : ''}${ed && (r === 'wrong' || it.note) ? ` <button class="link noprint" data-act="ck-sel" data-slot="${esc(sl)}">${it.seen || it.note ? 'แก้' : 'ใส่ทะเบียน'}</button>` : ''}</td>
       <td class="sub nw noprint">${esc(it.by || '')}${it.at ? '<br>' + fmtTs(it.at) : ''}</td></tr>`;
   }).join('')}</tbody>`;
+  renderCheckPrint(z, items);
+}
+/* แบบฟอร์มสำหรับพิมพ์: ทุกช่องอยู่ในกระดาษ A4 แผ่นเดียว (แบ่ง 2 คอลัมน์) */
+function renderCheckPrint(z, items) {
+  const slots = sortSlots(z.slots), half = Math.ceil(slots.length / 2), who = [...new Set(Object.values(items).map(i => i.by).filter(Boolean))].join(', ');
+  const box = on => `<span class="pbox${on ? ' on' : ''}">${on ? '✓' : ''}</span>`;
+  const row = sl => {
+    const ex = expectedAt(z, sl, S.cDate), it = items[ckKey(sl)] || {}, r = it.r || '', tg = tagOf(z, sl);
+    return `<tr><td class="c-no">${esc(sl)}${tg ? `<small>${tg === 'vip' ? 'VIP' : 'ผบ.'}</small>` : ''}</td>
+      <td class="c-who">${ex ? `<b>${esc(ex.plate)}</b><span>${esc(short(ex.name, 22))}</span>` : '<span class="c-empty">ว่าง</span>'}</td>
+      <td class="c-r">${box(r === 'ok')}</td><td class="c-r">${box(r === 'wrong')}</td><td class="c-r">${box(r === 'none')}</td>
+      <td class="c-note">${esc([it.seen, it.note].filter(Boolean).join(' '))}</td></tr>`;
+  };
+  const table = list => `<table class="ptbl"><thead><tr><th>ช่อง</th><th>ทะเบียน / ผู้มีสิทธิ์จอด</th><th>ตรง</th><th>ไม่ตรง</th><th>ไม่มีรถ</th><th>ทะเบียนที่พบ / หมายเหตุ</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>`;
+  const cnt = { ok: 0, wrong: 0, none: 0 }; Object.values(items).forEach(i => { if (i && cnt[i.r] != null) cnt[i.r]++; });
+  $('cPrintForm').innerHTML = `<div class="pf-head"><div><h2>แบบฟอร์มตรวจเช็ครถประจำวัน</h2><p>${esc(z.name)}${z.note ? ' (' + esc(z.note) + ')' : ''}</p></div>
+      <div class="pf-meta"><div>วันที่ <b>${fmtDate(S.cDate)}</b></div><div>รวม ${slots.length} ช่อง · ตรง ${cnt.ok} · ไม่ตรง ${cnt.wrong} · ไม่มีรถ ${cnt.none}</div></div></div>
+    <div class="pf-cols">${table(slots.slice(0, half))}${table(slots.slice(half))}</div>
+    <div class="pf-foot"><span>ผู้ตรวจเช็ค ${who ? esc(who) : '....................................'}</span><span>ลงชื่อ ....................................</span><span>เวลา ............... น.</span></div>`;
 }
 function renderCheckPanel(z, items) {
   const p = $('cPanel'), sl = S.cSlot;
