@@ -622,13 +622,22 @@ svg.car.perm{color:#2C83D0} svg.car.temp{color:#F7941D} .slot.t-vip svg.car.temp
   .ptbl th{font-size:7.5pt;font-weight:600;background:#eee!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:2px 3px;border:1px solid #888;line-height:1.2}
   .ptbl td{border:1px solid #888;padding:1.5px 3px;vertical-align:middle;line-height:1.15;height:8.6mm}
   .ptbl th:nth-child(1),.ptbl td.c-no{width:9mm;text-align:center}
-  .ptbl th:nth-child(3),.ptbl th:nth-child(4),.ptbl th:nth-child(5),.ptbl td.c-r{width:8.5mm;text-align:center}
-  .ptbl th:nth-child(6){width:21mm}
   .ptbl td.c-no{font-weight:700;font-size:10pt} .ptbl td.c-no small{display:block;font-size:6pt;font-weight:600}
   .ptbl td.c-who b{display:block;font-size:8.5pt} .ptbl td.c-who span{display:block;font-size:7pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ptbl .c-empty{color:#777;font-size:7.5pt}
-  .ptbl td.c-note{font-size:7pt;word-break:break-word}
-  .pbox{display:inline-block;width:3.6mm;height:3.6mm;border:1px solid #000;line-height:3.4mm;font-size:8pt;font-weight:700}
-  .pf-foot{display:flex;justify-content:space-between;margin-top:8px;font-size:9pt}
+  .ptbl th:nth-child(3),.ptbl th:nth-child(4),.ptbl td.c-sh{width:19mm}
+  .ptbl td.c-sh{font-size:7.5pt;line-height:1.1;overflow:hidden}
+  .ptbl td.c-sh small{display:block;font-size:6pt;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ptbl .pr{white-space:nowrap} .ptbl .pr b{font-size:9pt}
+  .ptbl .pr-wrong{font-weight:700}
+  .pf-foot{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;font-size:8.5pt}
+  .pf-sh{border:1px solid #888;padding:4px 6px;line-height:1.45}
+  .pf-sign{margin-top:6px}
   .ptbl tr{break-inside:avoid}
 }
+
+/* ชื่อผู้ตรวจ / กะ */
+.ck-ins{display:inline-flex;gap:6px;align-items:center}
+.ins-recent{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+#tab-map .when,#tab-map .map-wrap{scroll-margin-top:72px}
+@media (max-width:760px){#tab-map .when,#tab-map .map-wrap{scroll-margin-top:60px}}

@@ -15,7 +15,7 @@ const firebaseConfig = {
   messagingSenderId: '280376216669',
   appId: '1:280376216669:web:dfa2385ae970e217b1d1b4'
 };
-const TZ = 'Asia/Bangkok', COLL = 'parkings', LOCKS = 'locks', TRASH_MS = 30 * 864e5, DEMO_KEY = 'parking_demo_v3';
+const TZ = 'Asia/Bangkok', COLL = 'parkings', LOCKS = 'locks', TRASH_MS = 30 * 864e5, DEMO_KEY = 'parking_demo_v4';
 const FREE_ZONES = ['หน้าตึก 2.2', 'โรงไฟฟ้า'];
 const PERM_ZONES = ['pilot plant', 'บ่อบำบัดน้ำเสีย'];
 const KINDS = ['Supplier', 'ผู้ติดต่อภายนอก', 'ผู้สมัครงาน', 'ลูกค้า'];
@@ -830,7 +830,42 @@ function todayText() {   // ข้อความสรุปสำหรับ�
    เอกสาร chk_<zone>_<date> (วันละ 1 ครั้งต่อสถานที่) : { zone, date, items: { <ช่อง>: { slot, r, seen, note, exp:{name,plate}, by, at } } }
    r = ok (มีรถ ทะเบียนตรง) / wrong (ทะเบียนไม่ตรง หรือมีรถอื่นจอดช่องว่าง) / none (ไม่มีรถจอด หรือว่างตามปกติ) */
 const ckKey = sl => 's_' + normSlot(sl).replace(/[^a-z0-9฀-๿]/g, '_');
-const ckId = (z, d) => `chk_${z}_${d}`;
+// แยกตามกะ: กะเช้า 07:00–19:00 (id เดิม chk_<zone>_<date>) / กะดึก 19:00–07:00 (chk_<zone>_<date>_n) กะดึกนับเป็นวันที่เริ่มกะ
+const SHIFTS = { d: { name: 'กะเช้า', time: '07:00–19:00' }, n: { name: 'กะดึก', time: '19:00–07:00' } };
+const curShift = () => { const n = nowHM(); return n < '07:00' ? { date: addDays(today(), -1), sh: 'n' } : { date: today(), sh: n < '19:00' ? 'd' : 'n' }; };
+const shiftKey = (d, sh) => `${d}_${sh}`;
+const isFutureShift = (d, sh) => { const c = curShift(); return shiftKey(d, sh) > shiftKey(c.date, c.sh); };
+const ckId = (z, d, sh = 'd') => `chk_${z}_${d}${sh === 'n' ? '_n' : ''}`;
+const ckShiftOf = c => c.shift || (/_n$/.test(c.id) ? 'n' : 'd');
+const ckDocOf = (zid, d, sh) => db.checks.find(c => c.id === ckId(zid, d, sh));
+/* ชื่อผู้ตรวจ: ใส่เองตอนเริ่มตรวจ เครื่องจำไว้เฉพาะกะนั้น (บัญชี guard01 ใช้ร่วมกันได้หลายคน) */
+const INS_KEY = 'parking_inspector', INS_RECENT = 'parking_inspector_recent';
+function inspectorFor(d, sh) { try { const o = JSON.parse(localStorage.getItem(INS_KEY) || '{}'); return o.k === shiftKey(d, sh) && o.u === (user && user.email) ? o.name : ''; } catch (e) { return ''; } }
+function recentInspectors() { try { return JSON.parse(localStorage.getItem(INS_RECENT) || '[]'); } catch (e) { return []; } }
+function setInspector(name, d, sh) {
+  try {
+    localStorage.setItem(INS_KEY, JSON.stringify({ name, k: shiftKey(d, sh), u: user && user.email }));
+    localStorage.setItem(INS_RECENT, JSON.stringify([name, ...recentInspectors().filter(x => x !== name)].slice(0, 8)));
+  } catch (e) {}
+  S.inspector = { name, k: shiftKey(d, sh) };
+}
+async function askInspector(force) {
+  const k = shiftKey(S.cDate, S.cShift);
+  if (!force) { const cur = (S.inspector && S.inspector.k === k && S.inspector.name) || inspectorFor(S.cDate, S.cShift); if (cur) { S.inspector = { name: cur, k }; return cur; } }
+  const rec = recentInspectors(), pre = (S.inspector && S.inspector.name) || (!isGuard && by()) || '';
+  const pr = openDialog({ title: 'ชื่อผู้ตรวจ', body: `<p>${SHIFTS[S.cShift].name} (${SHIFTS[S.cShift].time}) วันที่ ${fmtDate(S.cDate)}</p>
+    <form id="insForm" style="margin-top:10px"><label class="f"><span>ชื่อ-นามสกุล ผู้ตรวจ</span><input id="insName" maxlength="40" required autocomplete="off" list="insList" value="${esc(pre)}" placeholder="เช่น สมศักดิ์ ใจดี"></label>
+    <datalist id="insList">${rec.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+    ${rec.length ? `<div class="ins-recent">${rec.map(n => `<button type="button" class="btn ghost sm" data-ins="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}</form>
+    <p class="muted" style="margin-top:8px;font-size:.88em">ชื่อนี้จะอยู่ในผลตรวจทุกช่องของกะนี้ เปลี่ยนคนตรวจกลางกะได้ที่ปุ่ม "เปลี่ยนผู้ตรวจ"</p>`,
+    buttons: [{ label: 'ยกเลิก', value: false }, { label: 'เริ่มตรวจ', value: true, cls: 'pri' }] });
+  const inp = $('insName'); if (inp) { inp.focus(); inp.select(); }
+  const ok = await pr;
+  const v =String(($('insName') || {}).value || '').trim().replace(/\s+/g, ' ');
+  if (!ok) return '';
+  if (!v) { toast('กรุณาใส่ชื่อผู้ตรวจ'); return ''; }
+  setInspector(v, S.cDate, S.cShift); return v;
+}
 const CK_TXT = { ok: 'มีรถ ทะเบียนตรง', wrong: 'ทะเบียนไม่ตรง', none: 'ไม่มีรถจอด' };
 const ckLabel = (r, owned) => !r ? 'ยังไม่ตรวจ' : owned ? CK_TXT[r] : r === 'none' ? 'ว่าง' : 'มีรถอื่นจอด';
 function expectedAt(z, sl, date) {   // ใครควรจอดช่องนี้ในวันนั้น
@@ -840,22 +875,26 @@ function expectedAt(z, sl, date) {   // ใครควรจอดช่อง�
   if (t.length) return { name: t.map(x => x.name).join(', '), plate: t.map(x => x.plate).join(', '), kind: 'temp', time: t.map(x => `${x.from}–${x.to}`).join(', ') };
   return null;
 }
-const ckDoc = () => db.checks.find(c => c.id === ckId(S.cZone, S.cDate));
-const ckEditable = () => isAdmin || S.cDate >= addDays(today(), -1);   // สมาชิกแก้ผลย้อนหลังได้ 1 วัน ผู้ดูแลแก้ได้ทุกวัน
+const ckDoc = () => ckDocOf(S.cZone, S.cDate, S.cShift);
+const ckEditable = () => !isFutureShift(S.cDate, S.cShift) && (isAdmin || S.cDate >= addDays(today(), -1));   // ยังไม่ถึงกะแก้ไม่ได้ / แก้ย้อนหลังได้ 1 วัน ผู้ดูแลแก้ได้ทุกวัน
 function sortSlots(list) { return list.slice().sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })); }
 function renderCheck() {
   const zs = db.zones.filter(z => !z.free);
   if (!zs.some(z => z.id === S.cZone)) S.cZone = zs[0] ? zs[0].id : null;
   $('cZone').innerHTML = zs.map(z => `<option value="${esc(z.id)}">${esc(z.name)}</option>`).join(''); $('cZone').value = S.cZone || '';
-  $('cDate').value = S.cDate; $('cDate').max = today();
+  if (!S.cShift) { const c = curShift(); S.cDate = c.date; S.cShift = c.sh; }
+  $('cDate').value = S.cDate; $('cDate').max = today(); $('cShift').value = S.cShift;
   const z = getZone(S.cZone);
   if (!z) { $('cStage').innerHTML = '<div class="empty" style="margin:20px">ยังไม่มีสถานที่ที่มีเลขช่อง</div>'; $('cPanel').innerHTML = ''; $('cTable').innerHTML = ''; $('cProg').innerHTML = ''; return; }
   const doc = ckDoc(), items = (doc && doc.items) || {}, slots = sortSlots(z.slots);
   const res = sl => (items[ckKey(sl)] || {}).r || '';
   const cnt = { ok: 0, wrong: 0, none: 0 }; slots.forEach(sl => { const r = res(sl); if (r) cnt[r]++; });
   const done = cnt.ok + cnt.wrong + cnt.none, pct = slots.length ? Math.round(done / slots.length * 100) : 0;
-  $('cLead').textContent = `${z.name} ${fDL.format(toD(S.cDate))}${doc ? ` ผู้ตรวจ ${[...new Set(Object.values(items).map(i => i.by).filter(Boolean))].join(', ') || '—'}` : ''}`;
-  $('cProg').innerHTML = `<div class="cbar"><i style="width:${pct}%"></i></div><div class="cnums"><span><b>${done}</b>/${slots.length} ตรวจแล้ว</span><span class="c-ok"><b>${cnt.ok}</b> ตรง</span><span class="c-none"><b>${cnt.none}</b> ไม่มีรถ/ว่าง</span><span class="c-wrong"><b>${cnt.wrong}</b> ไม่ตรง</span>${!ckEditable() ? '<span class="muted">ดูย้อนหลัง แก้ไขไม่ได้</span>' : done < slots.length ? `<button class="btn sm pri" data-act="ck-next">ตรวจช่องถัดไป</button>` : '<span class="c-ok"><b>ตรวจครบแล้ว</b></span>'}</div>`;
+  const whoAll = [...new Set(Object.values(items).map(i => i.by).filter(Boolean))].join(', ');
+  $('cLead').textContent = `${z.name} ${fDL.format(toD(S.cDate))} ${SHIFTS[S.cShift].name} (${SHIFTS[S.cShift].time})${whoAll ? ` ผู้ตรวจ ${whoAll}` : ''}`;
+  const insNow = ckEditable() ? ((S.inspector && S.inspector.k === shiftKey(S.cDate, S.cShift) && S.inspector.name) || inspectorFor(S.cDate, S.cShift)) : '';
+  const insHtml = ckEditable() ? `<span class="ck-ins">ผู้ตรวจ <b>${insNow ? esc(insNow) : '<span class="muted">ยังไม่ระบุ</span>'}</b> <button class="link" data-act="ck-who" type="button">${insNow ? 'เปลี่ยนผู้ตรวจ' : 'ใส่ชื่อ'}</button></span>` : '';
+  $('cProg').innerHTML = `<div class="cbar"><i style="width:${pct}%"></i></div><div class="cnums"><span><b>${done}</b>/${slots.length} ตรวจแล้ว</span><span class="c-ok"><b>${cnt.ok}</b> ตรง</span><span class="c-none"><b>${cnt.none}</b> ไม่มีรถ/ว่าง</span><span class="c-wrong"><b>${cnt.wrong}</b> ไม่ตรง</span>${insHtml}${isFutureShift(S.cDate, S.cShift) ? '<span class="muted">ยังไม่ถึงเวลากะนี้</span>' : !ckEditable() ? '<span class="muted">ดูย้อนหลัง แก้ไขไม่ได้</span>' : done < slots.length ? `<button class="btn sm pri" data-act="ck-next">ตรวจช่องถัดไป</button>` : '<span class="c-ok"><b>ตรวจครบแล้ว</b></span>'}</div>`;
   // ผัง
   const cell = (sl, pos) => {
     const ex = expectedAt(z, sl, S.cDate), r = res(sl), sel = S.cSlot && normSlot(S.cSlot) === normSlot(sl), tg = tagOf(z, sl);
@@ -874,7 +913,7 @@ function renderCheck() {
   renderCheckPanel(z, items);
   // ตารางตรวจทีละช่อง
   const ed = ckEditable();
-  $('cPrintHead').innerHTML = `<h2>แบบฟอร์มตรวจเช็ครถประจำวัน</h2><p>${esc(z.name)}${z.note ? ' (' + esc(z.note) + ')' : ''} วันที่ ${fmtDate(S.cDate)}</p>`;
+  $('cPrintHead').innerHTML = `<h2>แบบฟอร์มตรวจเช็ครถประจำวัน</h2><p>${esc(z.name)}${z.note ? ' (' + esc(z.note) + ')' : ''} วันที่ ${fmtDate(S.cDate)} ${SHIFTS[S.cShift].name}</p>`;
   $('cTable').innerHTML = `<thead><tr><th>ช่อง</th><th>ผู้มีสิทธิ์จอด / ทะเบียน</th><th>ผลตรวจ</th><th>ทะเบียนที่พบ / หมายเหตุ</th><th class="noprint">ผู้ตรวจ</th></tr></thead><tbody>${slots.map(sl => {
     const ex = expectedAt(z, sl, S.cDate), it = items[ckKey(sl)] || {}, r = it.r || '', tg = tagOf(z, sl);
     const btn = (v, t) => `<button type="button" class="ckb ckb-${v} ${r === v ? 'on' : ''}" data-act="ck-set" data-slot="${esc(sl)}" data-r="${v}" ${ed ? '' : 'disabled'} aria-pressed="${r === v}">${t}</button>`;
@@ -884,25 +923,37 @@ function renderCheck() {
       <td>${esc(it.seen || '')}${it.note ? `<div class="sub">${esc(it.note)}</div>` : ''}${ed && (r === 'wrong' || it.note) ? ` <button class="link noprint" data-act="ck-sel" data-slot="${esc(sl)}">${it.seen || it.note ? 'แก้' : 'ใส่ทะเบียน'}</button>` : ''}</td>
       <td class="sub nw noprint">${esc(it.by || '')}${it.at ? '<br>' + fmtTs(it.at) : ''}</td></tr>`;
   }).join('')}</tbody>`;
-  renderCheckPrint(z, items);
+  renderCheckPrint(z);
 }
-/* แบบฟอร์มสำหรับพิมพ์: ทุกช่องอยู่ในกระดาษ A4 แผ่นเดียว (แบ่ง 2 คอลัมน์) */
-function renderCheckPrint(z, items) {
-  const slots = sortSlots(z.slots), half = Math.ceil(slots.length / 2), who = [...new Set(Object.values(items).map(i => i.by).filter(Boolean))].join(', ');
-  const box = on => `<span class="pbox${on ? ' on' : ''}">${on ? '✓' : ''}</span>`;
+/* แบบฟอร์มสำหรับพิมพ์: A4 แผ่นเดียว แบ่ง 2 คอลัมน์ ผลของกะเช้าและกะดึกอยู่ข้างกันในแถวเดียวกัน */
+function renderCheckPrint(z) {
+  const slots = sortSlots(z.slots), half = Math.ceil(slots.length / 2);
+  const sh = { d: ckDocOf(z.id, S.cDate, 'd'), n: ckDocOf(z.id, S.cDate, 'n') }, its = k => (sh[k] && sh[k].items) || {};
+  const cellOf = (it, owned) => {
+    if (!it || !it.r) return '';
+    const t = it.r === 'ok' ? '<b>✓</b> ตรง' : it.r === 'none' ? (owned ? '<b>✕</b> ไม่มีรถ' : '<b>–</b> ว่าง') : `<b>!</b> ${it.seen ? esc(it.seen) : owned ? 'ไม่ตรง' : 'มีรถจอด'}`;
+    return `<span class="pr pr-${it.r}">${t}</span>${it.note ? `<small>${esc(short(it.note, 26))}</small>` : ''}`;
+  };
   const row = sl => {
-    const ex = expectedAt(z, sl, S.cDate), it = items[ckKey(sl)] || {}, r = it.r || '', tg = tagOf(z, sl);
+    const ex = expectedAt(z, sl, S.cDate), tg = tagOf(z, sl), k = ckKey(sl);
     return `<tr><td class="c-no">${esc(sl)}${tg ? `<small>${tg === 'vip' ? 'VIP' : 'ผบ.'}</small>` : ''}</td>
       <td class="c-who">${ex ? `<b>${esc(ex.plate)}</b><span>${esc(short(ex.name, 22))}</span>` : '<span class="c-empty">ว่าง</span>'}</td>
-      <td class="c-r">${box(r === 'ok')}</td><td class="c-r">${box(r === 'wrong')}</td><td class="c-r">${box(r === 'none')}</td>
-      <td class="c-note">${esc([it.seen, it.note].filter(Boolean).join(' '))}</td></tr>`;
+      <td class="c-sh">${cellOf(its('d')[k], !!ex)}</td><td class="c-sh">${cellOf(its('n')[k], !!ex)}</td></tr>`;
   };
-  const table = list => `<table class="ptbl"><thead><tr><th>ช่อง</th><th>ทะเบียน / ผู้มีสิทธิ์จอด</th><th>ตรง</th><th>ไม่ตรง</th><th>ไม่มีรถ</th><th>ทะเบียนที่พบ / หมายเหตุ</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>`;
-  const cnt = { ok: 0, wrong: 0, none: 0 }; Object.values(items).forEach(i => { if (i && cnt[i.r] != null) cnt[i.r]++; });
+  const table = list => `<table class="ptbl"><thead><tr><th>ช่อง</th><th>ทะเบียน / ผู้มีสิทธิ์จอด</th><th>กะเช้า</th><th>กะดึก</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>`;
+  const sum = k => {
+    const v = Object.values(its(k)).filter(i => i && i.r), c = { ok: 0, wrong: 0, none: 0 }; v.forEach(i => c[i.r]++);
+    const who = [...new Set(v.map(i => i.by).filter(Boolean))].join(', '), ts = v.map(i => i.at).filter(Boolean).sort((a, b) => a - b);
+    const hm = t => new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(t));
+    return `<div class="pf-sh"><div><b>${SHIFTS[k].name}</b> ${SHIFTS[k].time}</div>
+      <div>ตรวจ ${v.length}/${slots.length} · ตรง ${c.ok} · ไม่ตรง ${c.wrong} · ไม่มีรถ/ว่าง ${c.none}</div>
+      <div>ผู้ตรวจ ${who ? `<b>${esc(who)}</b>` : '..............................'} เวลา ${ts.length ? `${hm(ts[0])}–${hm(ts[ts.length - 1])} น.` : '.............. น.'}</div>
+      <div class="pf-sign">ลงชื่อ ..........................................</div></div>`;
+  };
   $('cPrintForm').innerHTML = `<div class="pf-head"><div><h2>แบบฟอร์มตรวจเช็ครถประจำวัน</h2><p>${esc(z.name)}${z.note ? ' (' + esc(z.note) + ')' : ''}</p></div>
-      <div class="pf-meta"><div>วันที่ <b>${fmtDate(S.cDate)}</b></div><div>รวม ${slots.length} ช่อง · ตรง ${cnt.ok} · ไม่ตรง ${cnt.wrong} · ไม่มีรถ ${cnt.none}</div></div></div>
+      <div class="pf-meta"><div>วันที่ <b>${fmtDate(S.cDate)}</b></div><div>รวม ${slots.length} ช่อง · ✓ ตรง · ! ไม่ตรง (ทะเบียนที่พบ) · ✕ ไม่มีรถ · – ว่าง</div></div></div>
     <div class="pf-cols">${table(slots.slice(0, half))}${table(slots.slice(half))}</div>
-    <div class="pf-foot"><span>ผู้ตรวจเช็ค ${who ? esc(who) : '....................................'}</span><span>ลงชื่อ ....................................</span><span>เวลา ............... น.</span></div>`;
+    <div class="pf-foot">${sum('d')}${sum('n')}</div>`;
 }
 function renderCheckPanel(z, items) {
   const p = $('cPanel'), sl = S.cSlot;
@@ -915,25 +966,27 @@ function renderCheckPanel(z, items) {
   p.innerHTML = `<div class="p-slot">${esc(sl)}</div><div class="p-zone">${esc(z.name)} ${fmtDate(S.cDate)}</div>
     <p style="margin-top:10px"><span class="status st-${it.r === 'ok' ? 'free' : it.r === 'wrong' ? 'cancelled' : it.r === 'none' ? 'expired' : 'today'}">${ckLabel(it.r, !!ex)}</span> ${tg ? `<span class="status st-${tg}">${TAG_TXT[tg]}</span>` : ''}</p>
     <dl>${ex ? `<dt>ผู้มีสิทธิ์</dt><dd>${esc(ex.name)}</dd><dt>ทะเบียน</dt><dd><b style="font-size:1.15rem">${esc(ex.plate)}</b></dd>${ex.time ? `<dt>เวลาจอง</dt><dd>${esc(ex.time)}</dd>` : ''}` : '<dt>ผู้มีสิทธิ์</dt><dd>ไม่มี (ช่องว่าง)</dd>'}
-    ${it.by ? `<dt>ตรวจโดย</dt><dd>${esc(it.by)}<br><span class="muted">${fmtTs(it.at)}</span></dd>` : ''}</dl>
+    ${it.by ? `<dt>ตรวจโดย</dt><dd>${esc(it.by)}${it.acct && !isGuard ? ` <span class="muted">(${esc(it.acct)})</span>` : ''}<br><span class="muted">${fmtTs(it.at)}</span></dd>` : ''}</dl>
     <div class="ckgrid">${ex ? big('ok', '✓ มีรถ ทะเบียนตรง', 'ck-okb') + big('wrong', '! มีรถ ทะเบียนไม่ตรง', 'ck-wrongb') + big('none', '✕ ไม่มีรถจอด', 'ck-noneb') : big('none', '– ว่าง ไม่มีรถ', 'ck-noneb') + big('wrong', '! มีรถอื่นจอด', 'ck-wrongb')}</div>
     <form id="ckForm" class="grid2" style="margin-top:12px"><label class="f"><span>ทะเบียนที่พบ</span><input name="seen" maxlength="20" value="${esc(it.seen || '')}" ${ed ? '' : 'disabled'} placeholder="ถ้าไม่ตรง"></label>
     <label class="f"><span>หมายเหตุ</span><input name="note" maxlength="80" value="${esc(it.note || '')}" ${ed ? '' : 'disabled'}></label>
     ${ed ? `<div class="span2 row-gap"><button class="btn sm" type="submit">บันทึกทะเบียน/หมายเหตุ</button>${it.r ? `<button class="btn ghost sm" type="button" data-act="ck-clear" data-slot="${esc(sl)}">ล้างผลช่องนี้</button>` : ''}</div>` : ''}</form>`;
 }
 async function saveCheck(sl, patch) {
-  const z = getZone(S.cZone); if (!z || !ckEditable()) return;
-  const id = ckId(z.id, S.cDate), cur = db.checks.find(c => c.id === id), k = ckKey(sl), ex = expectedAt(z, sl, S.cDate), n = Date.now();
+  const z = getZone(S.cZone); if (!z || !ckEditable()) return false;
+  const who = await askInspector(); if (!who) return false;
+  const id = ckId(z.id, S.cDate, S.cShift), cur = db.checks.find(c => c.id === id), k = ckKey(sl), ex = expectedAt(z, sl, S.cDate), n = Date.now(), acct = shortId(user && user.email);
   const prev = (cur && cur.items && cur.items[k]) || {};
-  const item = patch === null ? null : { ...prev, ...patch, slot: sl, exp: ex ? { name: ex.name, plate: ex.plate } : null, by: by(), at: n };
-  const base = { id, zone: z.id, date: S.cDate, updatedAt: n, updatedBy: by() };
-  const merged = { ...(cur || { createdAt: n, by: by() }), ...base, items: { ...((cur && cur.items) || {}) } };
+  const item = patch === null ? null : { ...prev, ...patch, slot: sl, exp: ex ? { name: ex.name, plate: ex.plate } : null, by: who, acct, at: n };
+  const base = { id, zone: z.id, date: S.cDate, shift: S.cShift, updatedAt: n, updatedBy: who, updatedAcct: acct };
+  const merged = { ...(cur || { createdAt: n, by: who }), ...base, items: { ...((cur && cur.items) || {}) } };
   if (item) merged.items[k] = item; else delete merged.items[k];
   docs.set(id, toDoc('check', merged)); rebuild();
-  if (!fs) { demoSave(); return; }
+  if (!fs) { demoSave(); return true; }
   const F = firebase.firestore.FieldValue;
-  try { await col.doc(id).set({ ...base, docKind: 'check', ...(cur ? {} : { createdAt: n, by: by() }), items: { [k]: item ? JSON.parse(JSON.stringify(item)) : F.delete() } }, { merge: true }); }
+  try { await col.doc(id).set({ ...base, docKind: 'check', ...(cur ? {} : { createdAt: n, by: who }), items: { [k]: item ? JSON.parse(JSON.stringify(item)) : F.delete() } }, { merge: true }); }
   catch (e) { writeErr(e); }
+  return true;
 }
 function nextUnchecked(z, from) {
   const items = (ckDoc() || {}).items || {}, list = sortSlots(z.slots), i0 = from ? list.findIndex(x => normSlot(x) === normSlot(from)) : -1;
@@ -943,9 +996,9 @@ function nextUnchecked(z, from) {
 function exportCheck() {
   const z = getZone(S.cZone); if (!z) return;
   const items = (ckDoc() || {}).items || {};
-  const rows = [['สถานที่', 'วันที่', 'ช่อง', 'ผู้มีสิทธิ์จอด', 'ทะเบียนที่ลงไว้', 'ผลตรวจ', 'ทะเบียนที่พบ', 'หมายเหตุ', 'ผู้ตรวจ', 'เวลา']];
-  sortSlots(z.slots).forEach(sl => { const it = items[ckKey(sl)] || {}, ex = it.exp || expectedAt(z, sl, S.cDate); rows.push([z.name, S.cDate, sl, ex ? ex.name : '', ex ? ex.plate : '', ckLabel(it.r, !!ex), it.seen || '', it.note || '', it.by || '', it.at ? fmtTs(it.at) : '']); });
-  download(`ตรวจเช็ค-${z.name}-${S.cDate}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
+  const rows = [['สถานที่', 'วันที่', 'กะ', 'ช่อง', 'ผู้มีสิทธิ์จอด', 'ทะเบียนที่ลงไว้', 'ผลตรวจ', 'ทะเบียนที่พบ', 'หมายเหตุ', 'ผู้ตรวจ', 'บัญชีที่ใช้', 'เวลา']];
+  sortSlots(z.slots).forEach(sl => { const it = items[ckKey(sl)] || {}, ex = it.exp || expectedAt(z, sl, S.cDate); rows.push([z.name, S.cDate, SHIFTS[S.cShift].name, sl, ex ? ex.name : '', ex ? ex.plate : '', ckLabel(it.r, !!ex), it.seen || '', it.note || '', it.by || '', it.acct || '', it.at ? fmtTs(it.at) : '']); });
+  download(`ตรวจเช็ค-${z.name}-${S.cDate}-${SHIFTS[S.cShift].name}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
 }
 function checkStats(days) {   // สำหรับหน้าสรุป
   const d0 = addDays(today(), -(days - 1)), list = db.checks.filter(c => c.date >= d0 && c.date <= today());
@@ -991,7 +1044,7 @@ function renderSum() {
     ${hb(`ช่องประจำตามแผนก (${permA.length} คน)`, group(permA, p => p.dept).slice(0, 12))}${hb('ช่องประจำตามสถานที่', group(permA, p => zoneName(p.zone)))}
     ${(() => { const c = checkStats(R); if (!c.rounds) return '<div class="card wide"><h3>ผลตรวจเช็ค</h3><p class="muted">ยังไม่มีการตรวจเช็คในช่วงนี้</p></div>';
       const pc = v => c.owned ? Math.round(v / c.owned * 100) + '%' : '—';
-      return `<div class="card wide"><h3>ผลตรวจเช็ค ${c.rounds} ครั้ง (วัน × สถานที่)</h3><div class="kpis" style="margin:0 0 14px"><div class="kpi"><b>${pc(c.ok)}</b><span>มีรถ ทะเบียนตรง</span></div><div class="kpi"><b>${pc(c.none)}</b><span>ช่องประจำที่ไม่มีรถจอด</span></div><div class="kpi"><b>${c.wrong}</b><span>ทะเบียนไม่ตรง / รถอื่นจอด</span></div><div class="kpi"><b>${c.owned}</b><span>ช่องประจำที่ตรวจ (ครั้ง)</span></div></div></div>`
+      return `<div class="card wide"><h3>ผลตรวจเช็ค ${c.rounds} ครั้ง (วัน × กะ × สถานที่)</h3><div class="kpis" style="margin:0 0 14px"><div class="kpi"><b>${pc(c.ok)}</b><span>มีรถ ทะเบียนตรง</span></div><div class="kpi"><b>${pc(c.none)}</b><span>ช่องประจำที่ไม่มีรถจอด</span></div><div class="kpi"><b>${c.wrong}</b><span>ทะเบียนไม่ตรง / รถอื่นจอด</span></div><div class="kpi"><b>${c.owned}</b><span>ช่องประจำที่ตรวจ (ครั้ง)</span></div></div></div>`
         + hb('ช่องประจำที่ไม่มีรถจอดบ่อย', [...c.noneBy.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)) + hb('ทะเบียนไม่ตรงบ่อย', [...c.wrongBy.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)); })()}</div>`;
 }
 
@@ -1009,7 +1062,7 @@ function renderData() {
     const rows = dataRowsChk(q, fz, fs_);
     $('dCount').textContent = `${rows.length} วันที่ตรวจ`;
     $('dTable').innerHTML = `<thead><tr><th>วันที่</th><th>สถานที่</th><th>ตรวจแล้ว</th><th>ไม่มีรถ</th><th>ทะเบียนไม่ตรง / รถอื่น</th><th>ผู้ตรวจ</th><th></th></tr></thead><tbody>` +
-      (rows.map(({ c, n, tot, none, wrong, who }) => `<tr><td class="nw">${fmtDate(c.date)}</td><td>${esc(zoneName(c.zone))}</td><td class="nw">${n}/${tot}</td><td>${none ? `<b>${none}</b>` : 0}</td><td>${wrong ? `<b style="color:var(--stop)">${wrong}</b>` : 0}</td><td class="sub">${esc(who)}<br>${fmtTs(c.updatedAt)}</td>
+      (rows.map(({ c, n, tot, none, wrong, who }) => `<tr><td class="nw">${fmtDate(c.date)}<div class="sub">${SHIFTS[ckShiftOf(c)].name}</div></td><td>${esc(zoneName(c.zone))}</td><td class="nw">${n}/${tot}</td><td>${none ? `<b>${none}</b>` : 0}</td><td>${wrong ? `<b style="color:var(--stop)">${wrong}</b>` : 0}</td><td class="sub">${esc(who)}<br>${fmtTs(c.updatedAt)}</td>
         <td class="keep nw"><button class="link" data-act="ck-open" data-id="${esc(c.id)}">เปิด</button></td></tr>`).join('') || '<tr><td colspan="7" class="muted" style="text-align:center;padding:28px">ยังไม่มีการตรวจเช็ค</td></tr>') + '</tbody>';
     return;
   }
@@ -1037,7 +1090,7 @@ function dataRowsChk(q, fz, f) {
     const none = its.filter(i => i.r === 'none' && i.exp).length, wrong = its.filter(i => i.r === 'wrong').length;
     const who = [...new Set(its.map(i => i.by).filter(Boolean))].join(', ');
     return { c, n: its.length, tot: z ? z.slots.length : its.length, none, wrong, who, text: (who + ' ' + its.map(i => [i.slot, i.seen, i.note, i.exp && i.exp.name, i.exp && i.exp.plate].join(' ')).join(' ')).toLowerCase() };
-  }).filter(r => (f !== 'issue' || r.none + r.wrong > 0) && (!q || r.text.includes(q))).sort((a, b) => b.c.date.localeCompare(a.c.date) || zoneName(a.c.zone).localeCompare(zoneName(b.c.zone)));
+  }).filter(r => (f !== 'issue' || r.none + r.wrong > 0) && (!q || r.text.includes(q))).sort((a, b) => b.c.date.localeCompare(a.c.date) || ckShiftOf(b.c).localeCompare(ckShiftOf(a.c)) || zoneName(a.c.zone).localeCompare(zoneName(b.c.zone)));
 }
 function dataRowsPerm(q, fz, f) {
   return db.permanent.filter(p => (!fz || p.zone === fz) && (!f || (f === 'on') === !!p.active) && (!q || [p.name, p.empId, p.plate, p.slot, p.dept, p.division].join(' ').toLowerCase().includes(q)))
@@ -1058,8 +1111,8 @@ function download(name, content, type) {
 function exportData() {
   const q = $('dQ').value.trim().toLowerCase(), fz = $('dZone').value, f = $('dStatus').value;
   if (S.dtab === 'chk') {
-    const rows = [['วันที่', 'สถานที่', 'ช่อง', 'ผู้มีสิทธิ์จอด', 'ทะเบียนที่ลงไว้', 'ผลตรวจ', 'ทะเบียนที่พบ', 'หมายเหตุ', 'ผู้ตรวจ', 'เวลา']];
-    dataRowsChk(q, fz, f).forEach(({ c }) => sortSlots(Object.values(c.items || {}).filter(i => i && i.r).map(i => i.slot)).forEach(sl => { const it = c.items[ckKey(sl)]; rows.push([c.date, zoneName(c.zone), sl, it.exp ? it.exp.name : '', it.exp ? it.exp.plate : '', ckLabel(it.r, !!it.exp), it.seen || '', it.note || '', it.by || '', fmtTs(it.at)]); }));
+    const rows = [['วันที่', 'กะ', 'สถานที่', 'ช่อง', 'ผู้มีสิทธิ์จอด', 'ทะเบียนที่ลงไว้', 'ผลตรวจ', 'ทะเบียนที่พบ', 'หมายเหตุ', 'ผู้ตรวจ', 'บัญชีที่ใช้', 'เวลา']];
+    dataRowsChk(q, fz, f).forEach(({ c }) => sortSlots(Object.values(c.items || {}).filter(i => i && i.r).map(i => i.slot)).forEach(sl => { const it = c.items[ckKey(sl)]; rows.push([c.date, SHIFTS[ckShiftOf(c)].name, zoneName(c.zone), sl, it.exp ? it.exp.name : '', it.exp ? it.exp.plate : '', ckLabel(it.r, !!it.exp), it.seen || '', it.note || '', it.by || '', it.acct || '', fmtTs(it.at)]); }));
     return download(`ประวัติตรวจเช็ค-${today()}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
   }
   if (S.dtab === 'perm') download(`ช่องประจำ-${today()}.csv`, toCSV([['ชื่อ-นามสกุล', 'รหัสพนักงาน', 'ทะเบียนรถ', 'แผนก', 'ฝ่าย', 'สถานที่', 'หมายเลขช่อง', 'สถานะ', 'แก้ไขล่าสุด', 'แก้ไขโดย']]
@@ -1203,15 +1256,16 @@ async function act(b) {
     case 'ck-next': { const z2 = getZone(S.cZone); S.cSlot = z2 && nextUnchecked(z2, S.cSlot); renderCheck(); if (S.cSlot && window.innerWidth <= 1100) $('cPanel').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
     case 'ck-set': {
       const sl = b.dataset.slot, r = b.dataset.r, z2 = getZone(S.cZone);
-      await saveCheck(sl, { r });
+      if (!await saveCheck(sl, { r })) return renderCheck();
       if (r === 'wrong') { S.cSlot = sl; renderCheck(); const f = document.querySelector('#ckForm [name=seen]'); if (f) f.focus(); return; }
       if (b.dataset.adv) { S.cSlot = nextUnchecked(z2, sl); if (!S.cSlot) toast('ตรวจครบทุกช่องแล้ว'); }
       return renderCheck();
     }
     case 'ck-clear': await saveCheck(b.dataset.slot, null); return renderCheck();
     case 'ck-export': return exportCheck();
+    case 'ck-who': { await askInspector(true); return renderCheck(); }
     case 'ck-print': return window.print();
-    case 'ck-open': { const c = db.checks.find(x => x.id === id); if (c) { S.cZone = c.zone; S.cDate = c.date; S.cSlot = null; showTab('chk'); } return; }
+    case 'ck-open': { const c = db.checks.find(x => x.id === id); if (c) { S.cZone = c.zone; S.cDate = c.date; S.cShift = ckShiftOf(c); S.cSlot = null; showTab('chk'); } return; }
     case 'perm-here': return openSheet({ type: 'perm', zone: S.zone, slot: S.sel.slot });
     case 'new-temp': return openSheet({ type: 'temp', zone: S.tab === 'today' && S.tZone ? S.tZone : undefined, date: S.tab === 'today' ? S.tDate : S.vDate, from: S.tab === 'today' ? '08:00' : S.vFrom, to: S.tab === 'today' ? '17:00' : S.vTo });
     case 'new-perm-or-temp': if (S.dtab === 'chk') { S.cDate = today(); S.cSlot = null; return showTab('chk'); } return S.dtab === 'perm' ? openSheet({ type: 'perm' }) : openSheet({ type: 'temp', date: today(), from: '08:00', to: '17:00' });
@@ -1402,6 +1456,13 @@ async function changePassword(f) {
   } catch (e) { toast(['auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-login-credentials'].includes(e.code) ? 'รหัสผ่านปัจจุบันไม่ถูกต้อง' : e.code === 'auth/too-many-requests' ? 'ลองผิดหลายครั้ง รอสักครู่แล้วลองใหม่' : 'เปลี่ยนรหัสผ่านไม่สำเร็จ (' + (e.code || '') + ')'); }
 }
 
+/* แตะลานจอดในผังโรงงานแล้วเลื่อนลงไปที่ผังลานนั้นให้เอง */
+function scrollToLot() {
+  const w = document.querySelector('#tab-map .when') || document.querySelector('#tab-map .map-wrap'); if (!w) return;
+  const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  requestAnimationFrame(() => w.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' }));
+}
+
 /* ================= กล่องยืนยัน / แจ้งเตือน ================= */
 let dlgRes = null, dlgBtns = [];
 function openDialog({ title, body, buttons }) {
@@ -1426,9 +1487,10 @@ function setNet(st) {
 function bindEvents() {
   document.addEventListener('click', e => {
     const d = e.target.closest('[data-dlg]'); if (d) return closeDlg(dlgBtns[+d.dataset.dlg].value);
+    const ins = e.target.closest('[data-ins]'); if (ins) { $('insName').value = ins.dataset.ins; return closeDlg(true); }
     if (e.target.closest('[data-dlg-close]')) return closeDlg(false);
     const t = e.target.closest('[data-tab]'); if (t) return showTab(t.dataset.tab);
-    const zc = e.target.closest('[data-zone].zchip, .mk[data-zone]'); if (zc) { S.zone = zc.dataset.zone; S.sel = null; saveUi(); return renderMap(); }
+    const zc = e.target.closest('[data-zone].zchip, .mk[data-zone]'); if (zc) { S.zone = zc.dataset.zone; S.sel = null; saveUi(); renderMap(); if (zc.classList.contains('mk')) scrollToLot(); return; }
     const dt = e.target.closest('[data-dtab]'); if (dt) { S.dtab = dt.dataset.dtab; saveUi(); return renderData(); }
     const ty = e.target.closest('#bType button'); if (ty && !ty.disabled) return setSheetType(ty.dataset.type);
     const b = e.target.closest('[data-act]'); if (b) { e.preventDefault(); act(b); }
@@ -1441,7 +1503,7 @@ function bindEvents() {
     if (!$('findList').hidden) { $('findList').hidden = true; return; }
     if (S.sel) { S.sel = null; renderMap(); }
   });
-  document.addEventListener('keydown', e => { const g = e.target.closest && e.target.closest('.mk[data-zone]'); if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); S.zone = g.dataset.zone; S.sel = null; saveUi(); renderMap(); } });
+  document.addEventListener('keydown', e => { const g = e.target.closest && e.target.closest('.mk[data-zone]'); if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); S.zone = g.dataset.zone; S.sel = null; saveUi(); renderMap(); scrollToLot(); } });
   const win = () => { S.vDate = $('vDate').value || today(); if (S.vDate < today()) S.vDate = today(); S.vFrom = $('vFrom').value || '00:00'; S.vTo = $('vTo').value || '23:59'; S.follow = false; S.sel = S.sel && (S.sel.perm || S.sel.temp) ? S.sel : null; renderMap(); };
   ['vDate', 'vFrom', 'vTo'].forEach(i => $(i).addEventListener('change', win));
   $('vNow').addEventListener('click', () => { setWindowNow(); renderMap(); });
@@ -1453,6 +1515,7 @@ function bindEvents() {
   $('findForm').addEventListener('submit', e => { e.preventDefault(); const m = findMatches($('findQ').value); if (m[0]) gotoRec(m[0].k, m[0].r.id); });
   $('cZone').addEventListener('change', () => { S.cZone = $('cZone').value; S.cSlot = null; saveUi(); renderCheck(); });
   $('cDate').addEventListener('change', () => { const v = $('cDate').value; S.cDate = v && v <= today() ? v : today(); S.cSlot = null; renderCheck(); });
+  $('cShift').addEventListener('change', () => { S.cShift = $('cShift').value === 'n' ? 'n' : 'd'; S.cSlot = null; renderCheck(); });
   $('tDate').addEventListener('change', () => { S.tDate = $('tDate').value || today(); renderToday(); });
   $('tZone').addEventListener('change', () => { S.tZone = $('tZone').value; saveUi(); renderToday(); });
   $('bDateTo').addEventListener('change', refreshSheetSlots);
@@ -1471,7 +1534,8 @@ function bindEvents() {
       const rec = slots.length ? { id: uid(), name, slots, capacity: slots.length, perRow: slots.length > 30 ? 12 : 10, ord: db.zones.length } : { id: uid(), name, slots: [], free: true, capacity: Math.max(1, +f.get('cap') || 10), perRow: 10, ord: db.zones.length };
       stamp(rec, 'สร้างสถานที่'); put('zone', rec).then(() => toast('เพิ่มสถานที่แล้ว')).catch(() => {}); e.target.reset();
     }
-    if (e.target.id === 'ckForm') { e.preventDefault(); const f = new FormData(e.target); if (S.cSlot) saveCheck(S.cSlot, { seen: String(f.get('seen') || '').trim(), note: String(f.get('note') || '').trim() }).then(() => { toast('บันทึกแล้ว'); renderCheck(); }); return; }
+    if (e.target.id === 'ckForm') { e.preventDefault(); const f = new FormData(e.target); if (S.cSlot) saveCheck(S.cSlot, { seen: String(f.get('seen') || '').trim(), note: String(f.get('note') || '').trim() }).then(ok => { if (ok) toast('บันทึกแล้ว'); renderCheck(); }); return; }
+    if (e.target.id === 'insForm') { e.preventDefault(); closeDlg(true); return; }
     if (e.target.id === 'memberAdd') { e.preventDefault(); const f = new FormData(e.target); setMember(f.get('uid'), f.get('role'), String(f.get('nm') || '').trim()); e.target.reset(); }
     if (e.target.id === 'pwForm') { e.preventDefault(); changePassword(new FormData(e.target)); }
     if (e.target.id === 'loginForm') { e.preventDefault(); signIn(new FormData(e.target)); }
@@ -1605,18 +1669,19 @@ function demoSeed() {   // ข้อมูลตัวอย่างสำห�
   }
   // ผลตรวจเช็คย้อนหลัง
   const perms = ops.filter(o => o.kind === 'perm').map(o => o.rec);
+  const insD = ['สมศักดิ์ ใจดี', 'วีระ แก้วมณี'], insN = ['ประยุทธ มั่นคง', 'บุญมี ศรีสุข'];
   for (let d = -14; d <= -1; d++) {
-    const date = addDays(today(), d);
-    ['z-pilot-plant', 'z-wastewater'].forEach(zid => {
-      const z = ops.find(o => o.kind === 'zone' && o.rec.id === zid).rec, items = {};
+    const date = addDays(today(), d), day0 = new Date(date + 'T00:00:00+07:00').getTime();
+    ['d', 'n'].forEach(sh => ['z-pilot-plant', 'z-wastewater'].forEach(zid => {
+      const z = ops.find(o => o.kind === 'zone' && o.rec.id === zid).rec, items = {}, t0 = day0 + (sh === 'd' ? 7.3 : 19.4) * 36e5, who = (sh === 'd' ? insD : insN)[(-d) % 2];
       z.slots.forEach((sl, i) => {
-        const p = perms.find(x => x.zone === zid && x.slot === sl);
-        const r = p ? ((i * 7 + d * 3) % 11 === 0 ? 'none' : (i * 5 + d) % 23 === 0 ? 'wrong' : 'ok') : ((i + d) % 17 === 0 ? 'wrong' : 'none');
-        items[ckKey(sl)] = { slot: sl, r, at: Date.now() + d * 864e5, by: names[(i + 3) % 4], exp: p ? { name: p.name, plate: p.plate } : null, seen: r === 'wrong' ? pl(500 + i) : '' };
+        const p = perms.find(x => x.zone === zid && x.slot === sl), q = sh === 'n' ? 4 : 0;
+        const r = p ? ((i * 7 + d * 3 + q) % 11 === 0 ? 'none' : (i * 5 + d + q) % 23 === 0 ? 'wrong' : 'ok') : ((i + d + q) % 17 === 0 ? 'wrong' : 'none');
+        items[ckKey(sl)] = { slot: sl, r, at: t0 + i * 35e3, by: who, acct: sh === 'd' ? 'guard01' : 'guard02', exp: p ? { name: p.name, plate: p.plate } : null, seen: r === 'wrong' ? pl(500 + i) : '' };
       });
-      const id = ckId(zid, date);
-      ops.push({ kind: 'check', rec: { id, zone: zid, date, items, by: names[3], createdAt: Date.now() + d * 864e5, updatedAt: Date.now() + d * 864e5 } });
-    });
+      const id = ckId(zid, date, sh);
+      ops.push({ kind: 'check', rec: { id, zone: zid, date, shift: sh, items, by: who, createdAt: t0, updatedAt: t0 + z.slots.length * 35e3 } });
+    }));
   }
   // ตัวอย่างจองต่อเนื่องหลายเดือน (เคสพิเศษ)
   ops.push({ kind: 'temp', rec: stamp({ id: 'tm1', name: 'บจ. ผู้รับเหมาก่อสร้าง (งานโรงไฟฟ้า)', plate: '9กพ 4521', zone: 'z-power-plant', slot: '', date: addDays(today(), -14), dateTo: addDays(today(), 76), from: '07:30', to: '17:30', kind: 'Supplier', note: 'งานปรับปรุงโรงไฟฟ้า 3 เดือน', cancelled: false }, 'สร้างการจอง') });
