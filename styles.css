@@ -641,3 +641,24 @@ svg.car.perm{color:#2C83D0} svg.car.temp{color:#F7941D} .slot.t-vip svg.car.temp
 .ins-recent{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 #tab-map .when,#tab-map .map-wrap{scroll-margin-top:72px}
 @media (max-width:760px){#tab-map .when,#tab-map .map-wrap{scroll-margin-top:60px}}
+
+/* อัตราการมาจอดช่องประจำ */
+.rate-card{margin-bottom:16px}
+.rate-head{display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;align-items:flex-end;margin-bottom:10px}
+.rate-head h3{margin:0 0 2px}
+.rate-head p{margin:0;font-size:.86em}
+.rate-ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.rate-ctl label{display:flex;flex-direction:column;gap:3px;font-size:.8em;color:var(--muted)}
+.rate-ctl select,.rate-ctl input{font:inherit;font-size:1.15em;color:var(--ink);padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.rate-th{display:inline-flex;align-items:center;gap:4px;color:var(--ink);font-size:1.15em}
+.rate-th input{width:64px;font-size:1em}
+.rate-note{margin:4px 0 10px;font-size:.9em;color:var(--muted)}
+.rate-low-t{color:var(--stop)}
+.rate-tbl td.num,.rate-tbl th.num{text-align:center;white-space:nowrap}
+.rate-tbl td.num small{display:block;font-size:.76em;color:var(--muted)}
+.rate-tbl tr.rate-low td{background:var(--stop-soft)}
+.rate-tbl tr.rate-low .rate-tot b{color:var(--stop)}
+.rate-tot{min-width:86px}
+.rate-bar{display:block;height:4px;border-radius:2px;background:var(--line);margin-top:4px;overflow:hidden}
+.rate-bar>i{display:block;height:100%;background:var(--sign)}
+.rate-low .rate-bar>i{background:var(--stop)}

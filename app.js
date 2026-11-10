@@ -830,8 +830,8 @@ function todayText() {   // ข้อความสรุปสำหรับ�
    เอกสาร chk_<zone>_<date> (วันละ 1 ครั้งต่อสถานที่) : { zone, date, items: { <ช่อง>: { slot, r, seen, note, exp:{name,plate}, by, at } } }
    r = ok (มีรถ ทะเบียนตรง) / wrong (ทะเบียนไม่ตรง หรือมีรถอื่นจอดช่องว่าง) / none (ไม่มีรถจอด หรือว่างตามปกติ) */
 const ckKey = sl => 's_' + normSlot(sl).replace(/[^a-z0-9฀-๿]/g, '_');
-// แยกตามกะ: กะเช้า 07:00–19:00 (id เดิม chk_<zone>_<date>) / กะดึก 19:00–07:00 (chk_<zone>_<date>_n) กะดึกนับเป็นวันที่เริ่มกะ
-const SHIFTS = { d: { name: 'กะเช้า', time: '07:00–19:00' }, n: { name: 'กะดึก', time: '19:00–07:00' } };
+// แยกตามกะ: กะกลางวัน 07:00–19:00 (id เดิม chk_<zone>_<date>) / กะกลางคืน 19:00–07:00 (chk_<zone>_<date>_n) กะกลางคืนนับเป็นวันที่เริ่มกะ
+const SHIFTS = { d: { name: 'กะกลางวัน', time: '07:00–19:00' }, n: { name: 'กะกลางคืน', time: '19:00–07:00' } };
 const curShift = () => { const n = nowHM(); return n < '07:00' ? { date: addDays(today(), -1), sh: 'n' } : { date: today(), sh: n < '19:00' ? 'd' : 'n' }; };
 const shiftKey = (d, sh) => `${d}_${sh}`;
 const isFutureShift = (d, sh) => { const c = curShift(); return shiftKey(d, sh) > shiftKey(c.date, c.sh); };
@@ -925,7 +925,7 @@ function renderCheck() {
   }).join('')}</tbody>`;
   renderCheckPrint(z);
 }
-/* แบบฟอร์มสำหรับพิมพ์: A4 แผ่นเดียว แบ่ง 2 คอลัมน์ ผลของกะเช้าและกะดึกอยู่ข้างกันในแถวเดียวกัน */
+/* แบบฟอร์มสำหรับพิมพ์: A4 แผ่นเดียว แบ่ง 2 คอลัมน์ ผลของกะกลางวันและกะกลางคืนอยู่ข้างกันในแถวเดียวกัน */
 function renderCheckPrint(z) {
   const slots = sortSlots(z.slots), half = Math.ceil(slots.length / 2);
   const sh = { d: ckDocOf(z.id, S.cDate, 'd'), n: ckDocOf(z.id, S.cDate, 'n') }, its = k => (sh[k] && sh[k].items) || {};
@@ -940,7 +940,7 @@ function renderCheckPrint(z) {
       <td class="c-who">${ex ? `<b>${esc(ex.plate)}</b><span>${esc(short(ex.name, 22))}</span>` : '<span class="c-empty">ว่าง</span>'}</td>
       <td class="c-sh">${cellOf(its('d')[k], !!ex)}</td><td class="c-sh">${cellOf(its('n')[k], !!ex)}</td></tr>`;
   };
-  const table = list => `<table class="ptbl"><thead><tr><th>ช่อง</th><th>ทะเบียน / ผู้มีสิทธิ์จอด</th><th>กะเช้า</th><th>กะดึก</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>`;
+  const table = list => `<table class="ptbl"><thead><tr><th>ช่อง</th><th>ทะเบียน / ผู้มีสิทธิ์จอด</th><th>กะกลางวัน</th><th>กะกลางคืน</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>`;
   const sum = k => {
     const v = Object.values(its(k)).filter(i => i && i.r), c = { ok: 0, wrong: 0, none: 0 }; v.forEach(i => c[i.r]++);
     const who = [...new Set(v.map(i => i.by).filter(Boolean))].join(', '), ts = v.map(i => i.at).filter(Boolean).sort((a, b) => a - b);
@@ -977,7 +977,7 @@ async function saveCheck(sl, patch) {
   const who = await askInspector(); if (!who) return false;
   const id = ckId(z.id, S.cDate, S.cShift), cur = db.checks.find(c => c.id === id), k = ckKey(sl), ex = expectedAt(z, sl, S.cDate), n = Date.now(), acct = shortId(user && user.email);
   const prev = (cur && cur.items && cur.items[k]) || {};
-  const item = patch === null ? null : { ...prev, ...patch, slot: sl, exp: ex ? { name: ex.name, plate: ex.plate } : null, by: who, acct, at: n };
+  const item = patch === null ? null : { ...prev, ...patch, slot: sl, exp: ex ? { name: ex.name, plate: ex.plate, ...(ex.id ? { id: ex.id } : {}) } : null, by: who, acct, at: n };
   const base = { id, zone: z.id, date: S.cDate, shift: S.cShift, updatedAt: n, updatedBy: who, updatedAcct: acct };
   const merged = { ...(cur || { createdAt: n, by: who }), ...base, items: { ...((cur && cur.items) || {}) } };
   if (item) merged.items[k] = item; else delete merged.items[k];
@@ -1046,6 +1046,192 @@ function renderSum() {
       const pc = v => c.owned ? Math.round(v / c.owned * 100) + '%' : '—';
       return `<div class="card wide"><h3>ผลตรวจเช็ค ${c.rounds} ครั้ง (วัน × กะ × สถานที่)</h3><div class="kpis" style="margin:0 0 14px"><div class="kpi"><b>${pc(c.ok)}</b><span>มีรถ ทะเบียนตรง</span></div><div class="kpi"><b>${pc(c.none)}</b><span>ช่องประจำที่ไม่มีรถจอด</span></div><div class="kpi"><b>${c.wrong}</b><span>ทะเบียนไม่ตรง / รถอื่นจอด</span></div><div class="kpi"><b>${c.owned}</b><span>ช่องประจำที่ตรวจ (ครั้ง)</span></div></div></div>`
         + hb('ช่องประจำที่ไม่มีรถจอดบ่อย', [...c.noneBy.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)) + hb('ทะเบียนไม่ตรงบ่อย', [...c.wrongBy.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)); })()}</div>`;
+  renderRate();
+}
+
+/* ================= อัตราการมาจอดช่องประจำ (รายเดือน) =================
+   นับจากผลตรวจเช็ค: วันที่ช่องนั้นถูกตรวจ = วันทั้งหมด / วันที่ทะเบียนตรงกะใดกะหนึ่ง = วันที่จอด
+   ผูกกับคนที่มีสิทธิ์จอดในวันที่ตรวจ (เก็บไว้ในผลตรวจ) เปลี่ยนเจ้าของกลางเดือนก็แยกแถวให้เอง */
+const TH_MON = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const TH_MONL = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+const monLabel = (ym, long) => { const [y, m] = ym.split('-').map(Number); return long ? `${TH_MONL[m - 1]} ${y + 543}` : `${TH_MON[m - 1]} ${String(y + 543).slice(2)}`; };
+const monList = (a, b) => { const out = []; let [y, m] = a.split('-').map(Number); const [y2, m2] = b.split('-').map(Number); while ((y < y2 || (y === y2 && m <= m2)) && out.length < 24) { out.push(`${y}-${String(m).padStart(2, '0')}`); if (++m > 12) { m = 1; y++; } } return out; };
+const monDays = ym => { const [y, m] = ym.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).getUTCDate(); };
+const normName = s => String(s || '').replace(/^(คุณ|นาย|นางสาว|นาง|น\.ส\.)\s*/, '').replace(/\s+/g, ' ').trim();
+function personOf(exp) {   // หาข้อมูลพนักงานจากผลตรวจ (id ช่องประจำ หรือชื่อ)
+  const p = (exp.id && db.permanent.find(x => x.id === exp.id)) || db.permanent.find(x => normName(x.name) === normName(exp.name));
+  return { key: p ? p.id : 'n:' + normName(exp.name), name: exp.name, plate: (p && p.plate) || exp.plate, empId: p ? p.empId : '', dept: p ? p.dept : '', division: p ? p.division : '' };
+}
+/* คืน { zones: [{ z, days:Set(วันที่ที่ลานนี้มีการตรวจ), rows:[{ slot, person, d:{date:1|0} }] }] } ของเดือน ym */
+function monthRate(ym, zid) {
+  const out = [];
+  db.zones.filter(z => !z.free && (!zid || z.id === zid)).forEach(z => {
+    const docs = db.checks.filter(c => c.zone === z.id && c.date.slice(0, 7) === ym), days = new Set(), rows = new Map();
+    docs.forEach(c => Object.values(c.items || {}).forEach(it => {
+      if (!it || !it.r) return; days.add(c.date);
+      if (!it.exp) return;
+      const per = personOf(it.exp), k = normSlot(it.slot) + '|' + per.key;
+      if (!rows.has(k)) rows.set(k, { slot: it.slot, person: per, d: {} });
+      const r = rows.get(k), v = it.r === 'ok' ? 1 : 0;
+      r.d[c.date] = Math.max(r.d[c.date] ?? 0, v);   // ทะเบียนตรงกะใดกะหนึ่ง = 1
+    }));
+    const list = [...rows.values()].map(r => { const v = Object.values(r.d); r.park = v.filter(x => x === 1).length; r.tot = v.length; r.pct = r.tot ? r.park / r.tot : null; return r; })
+      .sort((a, b) => String(a.slot).localeCompare(String(b.slot), undefined, { numeric: true }) || Object.keys(a.d).sort()[0].localeCompare(Object.keys(b.d).sort()[0]));
+    out.push({ z, days, rows: list });
+  });
+  return out;
+}
+/* รวมหลายเดือน: แถวละคน (ต่อสถานที่ + ช่อง) พร้อม % รายเดือนและรวม */
+function rateMatrix(months, zid) {
+  const per = new Map();
+  months.forEach(ym => monthRate(ym, zid).forEach(({ z, rows }) => rows.forEach(r => {
+    const k = z.id + '|' + normSlot(r.slot) + '|' + r.person.key;
+    if (!per.has(k)) per.set(k, { z, slot: r.slot, person: r.person, m: {}, park: 0, tot: 0 });
+    const o = per.get(k); o.m[ym] = { park: r.park, tot: r.tot }; o.park += r.park; o.tot += r.tot;
+  })));
+  return [...per.values()].map(o => ({ ...o, pct: o.tot ? o.park / o.tot : null }))
+    .sort((a, b) => zoneName(a.z.id).localeCompare(zoneName(b.z.id)) || String(a.slot).localeCompare(String(b.slot), undefined, { numeric: true }));
+}
+const pctTxt = v => v == null ? '—' : (Math.round(v * 1000) / 10).toFixed(1).replace(/\.0$/, '') + '%';
+function rateState() {
+  const cur = today().slice(0, 7);
+  if (!S.rate) { const prev = monList(addDays(today().slice(0, 8) + '01', -1).slice(0, 7), cur)[0]; S.rate = { from: prev, to: cur, zone: '', th: '', sort: 'slot' }; }
+  return S.rate;
+}
+function renderRate() {
+  const R = rateState(), box = $('rateBody'); if (!box) return;
+  const zs = db.zones.filter(z => !z.free), months = monList(R.from <= R.to ? R.from : R.to, R.from <= R.to ? R.to : R.from), th = R.th === '' ? null : Math.max(0, Math.min(100, +R.th)) / 100;
+  let rows = rateMatrix(months, R.zone);
+  if (R.sort === 'pct') rows = rows.slice().sort((a, b) => (a.pct ?? 2) - (b.pct ?? 2));
+  const low = th == null ? 0 : rows.filter(r => r.pct != null && r.pct < th).length;
+  const cell = (o) => o && o.tot ? `<b>${pctTxt(o.park / o.tot)}</b><small>${o.park}/${o.tot}</small>` : '<span class="muted">—</span>';
+  box.innerHTML = `<div class="card wide rate-card">
+    <div class="rate-head"><div><h3>อัตราการมาจอดช่องประจำ</h3><p class="muted">วันที่จอด = วันที่ทะเบียนตรงกะใดกะหนึ่ง · วันทั้งหมด = วันที่ช่องนั้นถูกตรวจเช็ค</p></div>
+      <div class="rate-ctl">
+        <label>สถานที่<select id="rZone"><option value="">ทุกสถานที่</option>${zs.map(z => `<option value="${esc(z.id)}"${z.id === R.zone ? ' selected' : ''}>${esc(z.name)}</option>`).join('')}</select></label>
+        <label>ตั้งแต่เดือน<input id="rFrom" type="month" value="${R.from}" max="${today().slice(0, 7)}"></label>
+        <label>ถึงเดือน<input id="rTo" type="month" value="${R.to}" max="${today().slice(0, 7)}"></label>
+        <label>ไฮไลต์ต่ำกว่า<span class="rate-th"><input id="rTh" type="number" min="0" max="100" step="5" value="${esc(R.th)}" placeholder="—">%</span></label>
+        <label>เรียง<select id="rSort"><option value="slot"${R.sort === 'slot' ? ' selected' : ''}>ตามช่อง</option><option value="pct"${R.sort === 'pct' ? ' selected' : ''}>% น้อยไปมาก</option></select></label>
+        <button class="btn pri" data-act="rate-xlsx" type="button">ดาวน์โหลด Excel</button>
+      </div></div>
+    ${rows.length ? `<p class="rate-note">${rows.length} คน · ${months.length} เดือน${th != null ? ` · <b class="${low ? 'rate-low-t' : ''}">ต่ำกว่า ${Math.round(th * 100)}% : ${low} คน</b>` : ''}</p>
+    <div class="table-wrap"><table class="tbl rate-tbl"><thead><tr><th>สถานที่</th><th>ช่อง</th><th>ชื่อ-นามสกุล</th><th>ทะเบียน</th>${months.map(m => `<th class="num">${monLabel(m)}</th>`).join('')}<th class="num">รวม</th></tr></thead><tbody>
+    ${rows.map(r => `<tr class="${th != null && r.pct != null && r.pct < th ? 'rate-low' : ''}"><td>${esc(r.z.name)}</td><td class="nw"><b>${esc(r.slot)}</b></td><td>${esc(r.person.name)}${r.person.dept ? `<div class="sub">${esc(r.person.dept)}</div>` : ''}</td><td class="nw">${esc(r.person.plate)}</td>
+      ${months.map(m => `<td class="num">${cell(r.m[m])}</td>`).join('')}<td class="num rate-tot">${cell(r)}<i class="rate-bar"><i style="width:${r.pct == null ? 0 : Math.round(r.pct * 100)}%"></i></i></td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="muted" style="padding:18px 0">ยังไม่มีผลตรวจเช็คในช่วงเดือนนี้</p>'}</div>`;
+}
+function rateBind() {
+  document.addEventListener('change', e => {
+    const t = e.target, R = S.rate; if (!R || !t.id || !/^r(Zone|From|To|Th|Sort)$/.test(t.id)) return;
+    const v = t.value;
+    if (t.id === 'rZone') R.zone = v; if (t.id === 'rSort') R.sort = v; if (t.id === 'rTh') R.th = v === '' ? '' : String(Math.max(0, Math.min(100, +v || 0)));
+    if (t.id === 'rFrom' && /^\d{4}-\d{2}$/.test(v)) R.from = v; if (t.id === 'rTo' && /^\d{4}-\d{2}$/.test(v)) R.to = v;
+    setTimeout(renderRate, 0);
+  });
+}
+
+/* ---------- เขียนไฟล์ .xlsx เอง (มีสี เส้นตาราง สูตร) ไม่ต้องโหลดไลบรารีจากเน็ต ---------- */
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zipStore(files) {   // ZIP แบบไม่บีบอัด (Excel เปิดได้ปกติ)
+  const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  const u16 = v => [v & 255, (v >>> 8) & 255], u32 = v => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
+  files.forEach(([name, text]) => {
+    const nb = enc.encode(name), data = enc.encode(text), crc = crc32(data);
+    const head = [...u32(0x04034b50), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(nb.length), ...u16(0)];
+    parts.push(new Uint8Array(head), nb, data);
+    central.push(new Uint8Array([...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(nb.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(off)]), nb);
+    off += head.length + nb.length + data.length;
+  });
+  const cSize = central.reduce((s, p) => s + p.length, 0);
+  return new Blob([...parts, ...central, new Uint8Array([...u32(0x06054b50), 0, 0, 0, 0, ...u16(files.length), ...u16(files.length), ...u32(cSize), ...u32(off), 0, 0])], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+const xEsc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+const colL = n => { let s = ''; n++; while (n) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = (n - m - 1) / 26; } return s; };
+/* style ids: 0 ปกติ 1 หัวเรื่อง 2 หัวตาราง 3 ข้อความ 4 ตัวเลขกลาง 5 วันที่ไม่ได้ตรวจ(เทา) 6 % 7 % ต่ำกว่าเกณฑ์ 8 ข้อความต่ำกว่าเกณฑ์ 9 คำอธิบาย 10 หัววันเสาร์อาทิตย์ */
+const XSTYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="5"><font><sz val="10"/><name val="Tahoma"/></font><font><b/><sz val="14"/><name val="Tahoma"/></font><font><b/><sz val="10"/><name val="Tahoma"/></font><font><b/><sz val="10"/><color rgb="FFC00000"/><name val="Tahoma"/></font><font><i/><sz val="9"/><color rgb="FF595959"/><name val="Tahoma"/></font></fonts>
+<fills count="6"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFDDEBF7"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD9D9D9"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFCE4E4"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFF2CC"/></patternFill></fill></fills>
+<borders count="2"><border/><border><left style="thin"><color rgb="FFA6A6A6"/></left><right style="thin"><color rgb="FFA6A6A6"/></right><top style="thin"><color rgb="FFA6A6A6"/></top><bottom style="thin"><color rgb="FFA6A6A6"/></bottom></border></borders>
+<cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="11">
+<xf/>
+<xf fontId="1" applyFont="1"/>
+<xf fontId="2" fillId="2" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+<xf borderId="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf borderId="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf fillId="3" borderId="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="10" fontId="2" borderId="1" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="10" fontId="3" fillId="4" borderId="1" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf fillId="4" borderId="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf fontId="4" applyFont="1"/>
+<xf fontId="2" fillId="5" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+</cellXfs></styleSheet>`;
+function xSheet(rows, opt = {}) {   // rows: [[cell...]] cell = {v, s, f} หรือค่า
+  const cols = (opt.widths || []).map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('');
+  const body = rows.map((r, ri) => `<row r="${ri + 1}"${opt.heights && opt.heights[ri] ? ` ht="${opt.heights[ri]}" customHeight="1"` : ''}>${r.map((c, ci) => {
+    if (c == null) return ''; const o = typeof c === 'object' ? c : { v: c }, ref = colL(ci) + (ri + 1), s = o.s ? ` s="${o.s}"` : '';
+    if (o.f) return `<c r="${ref}"${s}${typeof o.v === 'string' ? ' t="str"' : ''}><f>${xEsc(o.f)}</f>${o.v != null && o.v !== '' ? `<v>${xEsc(o.v)}</v>` : ''}</c>`;
+    if (o.v == null || o.v === '') return s ? `<c r="${ref}"${s}/>` : '';
+    return typeof o.v === 'number' ? `<c r="${ref}"${s}><v>${o.v}</v></c>` : `<c r="${ref}"${s} t="inlineStr"><is><t xml:space="preserve">${xEsc(o.v)}</t></is></c>`;
+  }).join('')}</row>`).join('');
+  const merges = (opt.merges || []).length ? `<mergeCells count="${opt.merges.length}">${opt.merges.map(m => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : '';
+  const pane = opt.freeze ? `<sheetViews><sheetView workbookViewId="0"><pane xSplit="${opt.freeze[0]}" ySplit="${opt.freeze[1]}" topLeftCell="${colL(opt.freeze[0])}${opt.freeze[1] + 1}" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>` : '';
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>${pane}<sheetFormatPr defaultRowHeight="18"/>${cols ? `<cols>${cols}</cols>` : ''}<sheetData>${body}</sheetData>${merges}<pageMargins left="0.3" right="0.3" top="0.4" bottom="0.4" header="0.2" footer="0.2"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>`;
+}
+function xBook(sheets) {   // sheets: [{name, xml}]
+  const safe = n => n.replace(/[\\/?*[\]:]/g, ' ').slice(0, 31);
+  const files = [
+    ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`],
+    ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+    ['xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s, i) => `<sheet name="${xEsc(safe(s.name))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`],
+    ['xl/_rels/workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+    ['xl/styles.xml', XSTYLES],
+    ...sheets.map((s, i) => [`xl/worksheets/sheet${i + 1}.xml`, s.xml])
+  ];
+  return zipStore(files);
+}
+/* แผ่นรายเดือนต่อสถานที่ หน้าตาเหมือนไฟล์เดิม: ลำดับ รหัส ชื่อ นามสกุล แผนก ฝ่าย ทะเบียน ช่อง หมายเหตุ | 1..31 | วันที่จอด วันทั้งหมด % */
+function monthSheet(ym, z, rows, days, th) {
+  const nd = monDays(ym), D0 = 9, cP = D0 + 31, cT = cP + 1, cR = cT + 1, last = colL(cR);
+  const head = ['ลำดับที่', 'รหัส', 'ชื่อ', 'นามสกุล', 'แผนก', 'ฝ่าย', 'ทะเบียนรถ', 'หมายเลขช่องจอด', 'หมายเหตุ'];
+  const dow = d => new Date(`${ym}-${String(d).padStart(2, '0')}T00:00:00Z`).getUTCDay();
+  const out = [[{ v: `ข้อมูลที่จอดรถยนต์ ${z.name} ประจำเดือน ${monLabel(ym, true)}`, s: 1 }], [{ v: 'สร้างจากผลตรวจเช็คในแอปที่จอดรถ · 1 = ทะเบียนตรงกะใดกะหนึ่ง · 0 = ตรวจแล้วไม่พบรถ/ทะเบียนไม่ตรง · ช่องว่าง = วันนั้นไม่ได้ตรวจช่องนี้ · คอลัมน์สีเทา = วันที่ไม่มีการตรวจลานนี้ · สีเหลือง = เสาร์-อาทิตย์', s: 9 }]];
+  const hr = head.map(v => ({ v, s: 2 }));
+  for (let d = 1; d <= 31; d++) { const date = `${ym}-${String(d).padStart(2, '0')}`; hr.push(d > nd ? { v: '', s: 5 } : { v: d, s: days.has(date) ? ([0, 6].includes(dow(d)) ? 10 : 2) : 5 }); }
+  hr.push({ v: 'วันที่จอด', s: 2 }, { v: 'วันทั้งหมด', s: 2 }, { v: '%', s: 2 }); out.push(hr);
+  rows.forEach((r, i) => {
+    const ri = out.length + 1, nm = normName(r.person.name).split(' '), low = th != null && r.pct != null && r.pct < th, ts = low ? 8 : 3;
+    const row = [{ v: i + 1, s: 4 }, { v: r.person.empId || '', s: ts }, { v: nm[0] || '', s: ts }, { v: nm.slice(1).join(' '), s: ts }, { v: r.person.dept || '', s: ts }, { v: r.person.division || '', s: ts }, { v: r.person.plate || '', s: ts }, { v: `ช่อง ${r.slot}`, s: ts }, { v: '', s: ts }];
+    for (let d = 1; d <= 31; d++) { const date = `${ym}-${String(d).padStart(2, '0')}`, v = r.d[date]; row.push(d > nd || !days.has(date) ? { v: v ?? '', s: 5 } : { v: v ?? '', s: 4 }); }
+    row.push({ f: `SUM(${colL(D0)}${ri}:${colL(D0 + 30)}${ri})`, v: r.park, s: 4 }, { f: `COUNT(${colL(D0)}${ri}:${colL(D0 + 30)}${ri})`, v: r.tot, s: 4 }, { f: `IF(${colL(cT)}${ri}>0,${colL(cP)}${ri}/${colL(cT)}${ri},"")`, v: r.pct == null ? '' : r.pct, s: low ? 7 : 6 });
+    out.push(row);
+  });
+  if (!rows.length) out.push([{ v: 'ยังไม่มีผลตรวจเช็คของเดือนนี้', s: 9 }]);
+  out.push([], [{ v: `วันที่มีการตรวจลานนี้ ${days.size} วัน${th != null ? ` · เกณฑ์ ${Math.round(th * 100)}% (แถวสีชมพู = ต่ำกว่าเกณฑ์)` : ''}`, s: 9 }]);
+  return xSheet(out, { widths: [7, 13, 13, 15, 22, 16, 18, 13, 10, ...Array(31).fill(3.6), 9, 10, 9], merges: [`A1:${last}1`, `A2:${last}2`], freeze: [9, 3], heights: { 2: 30 } });
+}
+function exportRateXlsx() {
+  const R = rateState(), months = monList(R.from <= R.to ? R.from : R.to, R.from <= R.to ? R.to : R.from), th = R.th === '' ? null : +R.th / 100;
+  const sheets = [], mat = rateMatrix(months, R.zone);
+  // แผ่นสรุปหลายเดือน
+  const sh = [[{ v: `สรุปอัตราการมาจอดช่องประจำ ${monLabel(months[0], true)}${months.length > 1 ? ' ถึง ' + monLabel(months[months.length - 1], true) : ''}`, s: 1 }],
+    [{ v: 'แต่ละเดือนแสดง % (วันที่จอด/วันทั้งหมด) · รวม = รวมทุกเดือนที่เลือก', s: 9 }],
+    ['ลำดับ', 'สถานที่', 'ช่อง', 'ชื่อ-นามสกุล', 'รหัส', 'แผนก', 'ทะเบียน', ...months.map(m => monLabel(m)), 'วันที่จอด', 'วันทั้งหมด', '% รวม'].map(v => ({ v, s: 2 }))];
+  mat.forEach((r, i) => {
+    const low = th != null && r.pct != null && r.pct < th, ts = low ? 8 : 3, ri = sh.length + 1, c0 = 7 + months.length;
+    sh.push([{ v: i + 1, s: 4 }, { v: r.z.name, s: ts }, { v: r.slot, s: 4 }, { v: r.person.name, s: ts }, { v: r.person.empId || '', s: ts }, { v: r.person.dept || '', s: ts }, { v: r.person.plate || '', s: ts },
+      ...months.map(m => { const o = r.m[m]; return o && o.tot ? { v: o.park / o.tot, s: th != null && o.park / o.tot < th ? 7 : 6 } : { v: '', s: 5 }; }),
+      { v: r.park, s: 4 }, { v: r.tot, s: 4 }, { f: `IF(${colL(c0 + 1)}${ri}>0,${colL(c0)}${ri}/${colL(c0 + 1)}${ri},"")`, v: r.pct == null ? '' : r.pct, s: low ? 7 : 6 }]);
+  });
+  if (!mat.length) sh.push([{ v: 'ยังไม่มีผลตรวจเช็คในช่วงนี้', s: 9 }]);
+  if (th != null) sh.push([], [{ v: `เกณฑ์ ${Math.round(th * 100)}% · ต่ำกว่าเกณฑ์ ${mat.filter(r => r.pct != null && r.pct < th).length} คน (แถวสีชมพู)`, s: 9 }]);
+  const lastS = colL(9 + months.length);
+  sheets.push({ name: 'สรุปหลายเดือน', xml: xSheet(sh, { widths: [6, 18, 7, 26, 13, 22, 16, ...months.map(() => 10), 10, 10, 10], merges: [`A1:${lastS}1`, `A2:${lastS}2`], freeze: [4, 3] }) });
+  months.forEach(ym => monthRate(ym, R.zone).forEach(({ z, rows, days }) => sheets.push({ name: `${z.name.replace(/\s*\(.*\)/, '').slice(0, 20)} ${monLabel(ym)}`, xml: monthSheet(ym, z, rows, days, th) })));
+  const fn = `อัตราการจอด-${months[0]}${months.length > 1 ? '-ถึง-' + months[months.length - 1] : ''}.xlsx`;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(xBook(sheets)); a.download = fn; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
+  toast('ดาวน์โหลด Excel แล้ว');
 }
 
 /* ---------- ข้อมูล ---------- */
@@ -1221,7 +1407,7 @@ function renderSet() {
   const members = `<div class="card members"><h3>ผู้ใช้ที่เข้าระบบได้ (${allIds.length})</h3><p class="muted">ล็อกอินด้วยชื่อผู้ใช้และรหัสผ่าน ผู้ตรวจ (รปภ.) ดูผังและบันทึกตรวจเช็คได้อย่างเดียว ไม่เห็นรหัสพนักงาน${isAdmin ? ' เพิ่มชื่อที่นี่แล้วสร้างบัญชีใน Firebase ด้วยชื่อเดียวกัน' : ''}</p>
     <ul>${allIds.map(em => { const r = roleOf(em), nm = access.names[em]; return `<li><span><b>${esc(shortId(em))}</b>${nm ? ` <span class="muted">${esc(nm)}</span>` : ''} <span class="pill">${ROLE_TXT[r]}</span></span>${isAdmin && em !== user.email ? `<button class="link danger" data-act="rm-member" data-email="${esc(em)}">นำออก</button>` : ''}</li>`; }).join('') || '<li class="muted">ยังไม่มีผู้ใช้</li>'}</ul>
     ${isAdmin ? `<form id="memberAdd" class="grid2"><label class="f"><span>ชื่อผู้ใช้</span><input name="uid" required maxlength="40" pattern="[A-Za-z0-9._@\\-]+" placeholder="เช่น guard01 หรือ somchai" autocapitalize="none"></label>
-      <label class="f"><span>ชื่อที่แสดง</span><input name="nm" maxlength="40" placeholder="เช่น รปภ. สมศักดิ์ กะเช้า"></label>
+      <label class="f"><span>ชื่อที่แสดง</span><input name="nm" maxlength="40" placeholder="เช่น รปภ. สมศักดิ์ กะกลางวัน"></label>
       <label class="f"><span>บทบาท</span><select name="role"><option value="guards">ผู้ตรวจ (รปภ.)</option><option value="members">สมาชิก (คนในแผนก)</option><option value="admins">ผู้ดูแลระบบ</option></select></label>
       <div class="f" style="justify-content:flex-end"><button class="btn pri">เพิ่มผู้ใช้</button></div></form>` : ''}</div>`;
   const backup = `<div class="card"><h3>สำรองข้อมูล</h3><p class="muted">ดาวน์โหลดไฟล์สำรองเก็บไว้เป็นระยะ ไฟล์มีข้อมูลส่วนบุคคลของพนักงาน เก็บในที่ปลอดภัย</p>
@@ -1238,7 +1424,7 @@ function renderSet() {
 }
 
 /* ================= การกระทำ ================= */
-const GUARD_DENY = new Set(['book-here', 'perm-here', 'new-temp', 'new-perm-or-temp', 'edit-perm', 'edit-temp', 'cancel-temp', 'del-temp', 'del-perm', 'toggle-perm', 'import', 'restore', 'restore-trash', 'purge', 'save-zone', 'del-zone', 'zone-up', 'apply-preset', 'seed-zones', 'relock', 'rm-member', 'backup', 'export-data', 'export-sum', 'hist']);
+const GUARD_DENY = new Set(['rate-xlsx', 'book-here', 'perm-here', 'new-temp', 'new-perm-or-temp', 'edit-perm', 'edit-temp', 'cancel-temp', 'del-temp', 'del-perm', 'toggle-perm', 'import', 'restore', 'restore-trash', 'purge', 'save-zone', 'del-zone', 'zone-up', 'apply-preset', 'seed-zones', 'relock', 'rm-member', 'backup', 'export-data', 'export-sum', 'hist']);
 async function act(b) {
   const a = b.dataset.act, id = b.dataset.id;
   if (isGuard && GUARD_DENY.has(a)) return toast('บัญชีผู้ตรวจทำรายการนี้ไม่ได้');
@@ -1307,6 +1493,7 @@ async function act(b) {
     case 'seed-zones': return seedZones();
     case 'export-data': return exportData();
     case 'export-sum': return exportSum();
+    case 'rate-xlsx': return exportRateXlsx();
     case 'import': return $('importFile').click();
     case 'backup': return download(`ที่จอดรถ-สำรอง-${today()}.json`, JSON.stringify({ app: 'parking', at: Date.now(), zones: db.zones, permanent: db.permanent, temp: db.temp, trash: db.trash }, null, 2), 'application/json');
     case 'restore': return $('restoreFile').click();
@@ -1520,6 +1707,7 @@ function bindEvents() {
   $('tZone').addEventListener('change', () => { S.tZone = $('tZone').value; saveUi(); renderToday(); });
   $('bDateTo').addEventListener('change', refreshSheetSlots);
   $('sRange').addEventListener('change', renderSum);
+  rateBind();
   ['dQ', 'dZone', 'dStatus'].forEach(i => $(i).addEventListener('input', renderData));
   $('bForm').addEventListener('submit', submitSheet);
   $('bZone').addEventListener('change', () => { sheetZone = $('bZone').value; sheetSlot = ''; refreshSheetSlots(); });
@@ -1634,7 +1822,7 @@ function startDemo() {
   const asGuard = new URLSearchParams(location.search).get('role') === 'guard';
   user = asGuard ? { email: 'guard01@' + USER_DOMAIN, name: '', photo: '' } : { email: 'admin@' + USER_DOMAIN, name: '', photo: '' };
   access = readAccess({ admins: ['admin@' + USER_DOMAIN], members: ['somchai@' + USER_DOMAIN], guards: ['guard01@' + USER_DOMAIN, 'guard02@' + USER_DOMAIN],
-    names: { ['admin@' + USER_DOMAIN]: 'ผู้ดูแล (สาธิต)', ['somchai@' + USER_DOMAIN]: 'สมชาย ฝ่ายธุรการ', ['guard01@' + USER_DOMAIN]: 'รปภ. สมศักดิ์ กะเช้า', ['guard02@' + USER_DOMAIN]: 'รปภ. ประยุทธ กะดึก' } });
+    names: { ['admin@' + USER_DOMAIN]: 'ผู้ดูแล (สาธิต)', ['somchai@' + USER_DOMAIN]: 'สมชาย ฝ่ายธุรการ', ['guard01@' + USER_DOMAIN]: 'รปภ. สมศักดิ์ กะกลางวัน', ['guard02@' + USER_DOMAIN]: 'รปภ. ประยุทธ กะกลางคืน' } });
   applyRole();
   try { const raw = localStorage.getItem(DEMO_KEY); if (raw) docs = new Map(JSON.parse(raw)); } catch (e) {}
   if (!docs.size) demoSeed();
@@ -1676,7 +1864,7 @@ function demoSeed() {   // ข้อมูลตัวอย่างสำห�
       const z = ops.find(o => o.kind === 'zone' && o.rec.id === zid).rec, items = {}, t0 = day0 + (sh === 'd' ? 7.3 : 19.4) * 36e5, who = (sh === 'd' ? insD : insN)[(-d) % 2];
       z.slots.forEach((sl, i) => {
         const p = perms.find(x => x.zone === zid && x.slot === sl), q = sh === 'n' ? 4 : 0;
-        const r = p ? ((i * 7 + d * 3 + q) % 11 === 0 ? 'none' : (i * 5 + d + q) % 23 === 0 ? 'wrong' : 'ok') : ((i + d + q) % 17 === 0 ? 'wrong' : 'none');
+        const r = p ? ((i % 9 === 4 && (d + i) % 3 !== 0) || (i * 7 + d * 3 + q) % 11 === 0 ? 'none' : (i * 5 + d + q) % 23 === 0 ? 'wrong' : 'ok') : ((i + d + q) % 17 === 0 ? 'wrong' : 'none');
         items[ckKey(sl)] = { slot: sl, r, at: t0 + i * 35e3, by: who, acct: sh === 'd' ? 'guard01' : 'guard02', exp: p ? { name: p.name, plate: p.plate } : null, seen: r === 'wrong' ? pl(500 + i) : '' };
       });
       const id = ckId(zid, date, sh);
