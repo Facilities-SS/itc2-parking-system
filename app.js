@@ -1014,7 +1014,7 @@ function exportCheck() {
   const z = getZone(S.cZone); if (!z) return;
   const items = (ckDoc() || {}).items || {};
   const rows = [['สถานที่', 'วันที่', 'กะ', 'ช่อง', 'ผู้มีสิทธิ์จอด', 'ทะเบียนที่ลงไว้', 'ผลตรวจ', 'ทะเบียนที่พบ', 'หมายเหตุ', 'ผู้ตรวจ', 'บัญชีที่ใช้', 'เวลา']];
-  sortSlots(z.slots).forEach(sl => { const it = items[ckKey(sl)] || {}, ex = it.exp || expectedAt(z, sl, S.cDate); rows.push([z.name, S.cDate, SHIFTS[S.cShift].name, sl, ex ? ex.name : '', ex ? ex.plate : '', ckLabel(it.r, !!ex), it.seen || '', it.note || '', it.by || '', it.acct || '', it.at ? fmtTs(it.at) : '']); });
+  sortSlots(z.slots).forEach(sl => { const it = items[ckKey(sl)] || {}, ex = it.exp || expectedAt(z, sl, S.cDate); rows.push([z.name, dmy(S.cDate), SHIFTS[S.cShift].name, sl, ex ? ex.name : '', ex ? ex.plate : '', ckLabel(it.r, !!ex), it.seen || '', it.note || '', it.by || '', it.acct || '', it.at ? fmtTs(it.at) : '']); });
   download(`ตรวจเช็ค-${z.name}-${S.cDate}-${SHIFTS[S.cShift].name}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
 }
 function checkStats(days) {   // สำหรับหน้าสรุป
@@ -1053,12 +1053,9 @@ function renderSum() {
   // กราฟรายวัน
   const days = []; for (let i = 0; i < R; i++) days.push(addDays(d0, i));
   const cnt = days.map(d => tl.filter(t => onDay(t, d)).length), mx = Math.max(1, ...cnt);
-  const Wd = 1200, Hd = 190, bw = (Wd - 40) / R;
-  const ticks = R <= 7 ? 1 : R <= 30 ? 5 : 14;
-  const svg = `<svg viewBox="0 0 ${Wd} ${Hd + 26}" role="img" aria-label="จำนวนคำขอรายวัน">
-    <line x1="30" y1="${Hd}" x2="${Wd}" y2="${Hd}" stroke="var(--line)"/><text x="0" y="12">${mx}</text><text x="0" y="${Hd}">0</text>
-    ${cnt.map((c, i) => { const h = c / mx * (Hd - 14), x = 34 + i * bw; return `<rect x="${x.toFixed(1)}" y="${(Hd - h).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="${days[i] === today() ? 'var(--mark)' : 'var(--sign)'}"><title>${fmtDate(days[i])}: ${c} คำขอ</title></rect>${i % ticks === 0 || i === R - 1 ? `<text x="${(x + bw / 2).toFixed(1)}" y="${Hd + 16}" text-anchor="middle">${fDS.format(toD(days[i]))}</text>` : ''}`; }).join('')}</svg>`;
-  const chart = `<div class="card wide"><h3>คำขอรายวัน</h3><div class="chart">${svg}</div></div>`;
+  const chart = chartCard('จำนวนรถชั่วคราวที่ขอเข้าจอด ต่อวัน', `แต่ละแท่ง = จำนวนคำขอจอดชั่วคราวในวันนั้น (คัน) ย้อนหลัง ${R} วัน`,
+    barChart(days.map((d, i) => ({ label: dLab(d), v: cnt[i], cls: d === today() ? 'now' : '', tip: `${fmtDate(d)}: ${cnt[i]} คัน` })), { unit: 'คัน', label: 'คำขอรายวัน' }),
+    '<span><i class="lg lg-a"></i>วันที่ผ่านมา</span><span><i class="lg lg-now"></i>วันนี้</span>');
   const hb = (title, pairs, cls = '') => { const m = Math.max(1, ...pairs.map(p => p[1])); return `<div class="card ${cls}"><h3>${title}</h3>${pairs.length ? pairs.map(([k, v]) => `<div class="hbar"><span class="lbl" title="${esc(k)}">${esc(k)}</span><div><div class="bar" style="width:${v / m * 100}%"></div></div><span class="n">${v}</span></div>`).join('') : '<p class="muted">ยังไม่มีข้อมูล</p>'}</div>`; };
   const group = (arr, f) => { const m = new Map(); arr.forEach(x => { const k = f(x) || '(ไม่ระบุ)'; m.set(k, (m.get(k) || 0) + 1); }); return [...m.entries()].sort((a, b) => b[1] - a[1]); };
   const permA = db.permanent.filter(p => p.active);
@@ -1070,6 +1067,43 @@ function renderSum() {
       return `<div class="card wide"><h3>ผลตรวจเช็ค ${c.rounds} ครั้ง (วัน × กะ × สถานที่)</h3><div class="kpis" style="margin:0 0 14px"><div class="kpi"><b>${pc(c.ok)}</b><span>มีรถ ทะเบียนตรง</span></div><div class="kpi"><b>${pc(c.none)}</b><span>ช่องประจำที่ไม่มีรถจอด</span></div><div class="kpi"><b>${c.wrong}</b><span>ทะเบียนไม่ตรง / รถอื่นจอด</span></div><div class="kpi"><b>${c.owned}</b><span>ช่องประจำที่ตรวจ (ครั้ง)</span></div></div></div>`
         + hb('ช่องประจำที่ไม่มีรถจอดบ่อย', [...c.noneBy.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)) + hb('ทะเบียนไม่ตรงบ่อย', [...c.wrongBy.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)); })()}</div>`;
 }
+
+/* ---------- กราฟแท่งแบบอ่านง่าย: มีเส้นแกน ตัวเลขบนแท่ง หน่วย และคำอธิบาย ---------- */
+const niceMax = v => { if (v <= 5) return 5; const p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p; };
+/* items: [{ label, v (ตัวเลข หรือ null = ไม่มีข้อมูล), cls: '' | 'now' | 'future' | 'pct', tip }] */
+function barChart(items, o = {}) {
+  const W = 1200, H = o.h || 200, L = 52, R = 10, T = 22, n = Math.max(1, items.length);
+  const max = o.pct ? 100 : niceMax(Math.max(1, ...items.map(x => x.v || 0)));
+  const slot = (W - L - R) / n, bw = Math.min(64, slot * 0.78), y = v => T + (H - T) * (1 - v / max);
+  const step = n <= 16 ? 1 : n <= 31 ? 2 : Math.ceil(n / 16), showVal = n <= 40;
+  const grid = [0, 0.5, 1].map(f => { const v = max * f; return `<line x1="${L}" y1="${y(v).toFixed(1)}" x2="${W - R}" y2="${y(v).toFixed(1)}" class="gl${f ? '' : ' g0'}"/><text x="${L - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" class="ax">${o.pct ? Math.round(v) + '%' : (Number.isInteger(v) ? v : v.toFixed(1))}</text>`; }).join('');
+  const bars = items.map((x, i) => {
+    const cx = L + slot * i + slot / 2, X = (cx - bw / 2).toFixed(1);
+    const near = j => step > 1 && items[j] && items[j].cls === 'now', lab = (i % step === 0 && !near(i + 1) && !near(i - 1)) || x.cls === 'now' ? `<text x="${cx.toFixed(1)}" y="${H + 18}" text-anchor="middle" class="xl${x.cls === 'now' ? ' xnow' : ''}">${esc(x.label)}</text>` : '';
+    if (x.v == null) return lab + `<text x="${cx.toFixed(1)}" y="${H - 4}" text-anchor="middle" class="nd">–</text>`;
+    const h = Math.max(x.v ? 2 : 0, (H - y(x.v) + T - T)), top = y(x.v);
+    return `<g class="b ${x.cls || ''}"><rect x="${X}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H - top).toFixed(1)}" rx="3"><title>${esc(x.tip || '')}</title></rect>${showVal && (x.v || o.pct) ? `<text x="${cx.toFixed(1)}" y="${(top - 6).toFixed(1)}" text-anchor="middle" class="bv">${o.pct ? Math.round(x.v) + '%' : x.v}</text>` : ''}</g>${lab}`;
+  }).join('');
+  return `<svg class="bchart" viewBox="0 0 ${W} ${H + 28}" role="img" aria-label="${esc(o.label || '')}">${grid}${bars}<text x="4" y="12" class="ax unit">${esc(o.unit || '')}</text></svg>`;
+}
+const chartCard = (title, sub, svg, legend = '', cls = 'wide') => `<div class="card ${cls} chart-card"><h3>${title}</h3>${sub ? `<p class="chart-sub">${sub}</p>` : ''}${legend ? `<div class="legend chart-lg">${legend}</div>` : ''}<div class="chart">${svg}</div></div>`;
+const dLab = d => `${+d.slice(8)} ${TH_MON[+d.slice(5, 7) - 1]}`;   // 16 พ.ย.
+const dmy = d => d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${+d.slice(0, 4) + 543}` : '';   // 16/11/2569
+
+/* ---------- ช่องเลือกวันที่: แสดงเป็น วัน/เดือน/ปี (พ.ศ.) ทุกเครื่อง ไม่ขึ้นกับภาษาของเบราว์เซอร์ ---------- */
+const VALD = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+const fmtInput = (v, type) => { if (!v) return type === 'month' ? 'เลือกเดือน' : 'วว/ดด/ปปปป'; const [y, m, d] = v.split('-'); return type === 'month' ? `${TH_MONL[+m - 1]} ${+y + 543}` : `${d}/${m}/${+y + 543}`; };
+function thaiDate(inp) {
+  if (!inp || inp.dataset.td) return; inp.dataset.td = '1';
+  const w = document.createElement('span'); w.className = 'dpw'; inp.parentNode.insertBefore(w, inp); w.appendChild(inp);
+  const lab = document.createElement('span'); lab.className = 'dpv'; lab.setAttribute('aria-hidden', 'true'); w.appendChild(lab);
+  const upd = () => { lab.textContent = fmtInput(VALD.get.call(inp), inp.type); };
+  Object.defineProperty(inp, 'value', { get() { return VALD.get.call(this); }, set(v) { VALD.set.call(this, v); upd(); }, configurable: true });
+  inp.addEventListener('input', upd); inp.addEventListener('change', upd);
+  inp.addEventListener('click', () => { try { inp.showPicker(); } catch (e) {} });
+  upd();
+}
+const thaiDates = root => (root || document).querySelectorAll('input[type="date"], input[type="month"]').forEach(thaiDate);
 
 /* ================= สรุปตามช่วงเวลา: รายวัน / รายสัปดาห์ / รายเดือน / ทั้งปี =================
    รถชั่วคราว: นับจากคำขอที่ไม่ถูกยกเลิก 1 คัน 1 วัน = 1 ครั้ง (จองหลายวันนับทุกวันที่อยู่ในช่วง)
@@ -1144,17 +1178,22 @@ function renderPeriod() {
     <div class="pk pk-c">${ring(D.pct)}<div><b>${D.pct == null ? '—' : pctTxt(D.pct)}</b><span>อัตราการมาจอดช่องประจำ</span><small>${D.pRows.length} คน</small></div></div>
     <div class="pk pk-d"><b>${D.ckDays}</b><span>วันที่มีการตรวจเช็ค</span><small>ทะเบียนไม่ตรง ${D.wrong} ครั้ง</small></div></div>`;
   // กราฟแนวโน้ม
-  const hourly = P.mode === 'day', HRS = [];
-  if (hourly) for (let h = 6; h <= 21; h++) { const a = String(h).padStart(2, '0') + ':00', z = String(h + 1).padStart(2, '0') + ':00'; HRS.push({ b: a, temp: D.tv.filter(x => x.t.from < z && x.t.to > a).length, park: 0, tot: 0 }); }
-  const T = hourly ? HRS : D.trend, mx = Math.max(1, ...T.map(x => x.temp)), W = 1200, H = 170, bw = Math.min(70, (W - 40) / Math.max(1, T.length)), x0 = 34 + ((W - 40) - bw * T.length) / 2;
-  const lab = b => hourly ? b.slice(0, 2) + ' น.' : D.byMonth ? TH_MON[+b.slice(5) - 1] : (T.length <= 7 ? fDS.format(toD(b)) : String(+b.slice(8)));
-  const step = T.length <= 12 ? 1 : T.length <= 31 ? (T.length > 20 ? 2 : 1) : 7;
-  const pts = T.map((x, i) => x.tot ? `${(x0 + i * bw + bw / 2).toFixed(1)},${(H - x.park / x.tot * (H - 14)).toFixed(1)}` : null);
-  const svg = `<svg viewBox="0 0 ${W} ${H + 26}" role="img" aria-label="แนวโน้ม${D.byMonth ? 'รายเดือน' : 'รายวัน'}">
-    <line x1="30" y1="${H}" x2="${W}" y2="${H}" stroke="var(--line)"/><text x="0" y="12">${mx}</text><text x="0" y="${H}">0</text>${hourly ? '' : `<text x="${W}" y="12" text-anchor="end" class="pct-ax">100%</text>`}
-    ${T.map((x, i) => { const h = x.temp / mx * (H - 14), X = x0 + i * bw; return `<rect x="${X.toFixed(1)}" y="${(H - h).toFixed(1)}" width="${Math.max(1, bw - 3).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="var(--mark)"><title>${hourly ? x.b + ' น.: รถชั่วคราวในลาน' : (D.byMonth ? monLabel(x.b) : fmtDate(x.b)) + ': รถชั่วคราว'} ${x.temp} ${hourly ? 'คัน' : 'ครั้ง'}${x.tot ? ` · ช่องประจำมาจอด ${pctTxt(x.park / x.tot)}` : ''}</title></rect>${i % step === 0 || i === T.length - 1 ? `<text x="${(X + bw / 2).toFixed(1)}" y="${H + 17}" text-anchor="middle">${lab(x.b)}</text>` : ''}`; }).join('')}
-    ${pts.filter(Boolean).length > 1 ? `<polyline points="${pts.filter(Boolean).join(' ')}" fill="none" stroke="var(--sign)" stroke-width="2.5" stroke-linejoin="round"/>` : ''}
-    ${pts.map((p, i) => p ? `<circle cx="${p.split(',')[0]}" cy="${p.split(',')[1]}" r="3.5" fill="var(--sign)"><title>${D.byMonth ? monLabel(T[i].b) : fmtDate(T[i].b)}: ช่องประจำมาจอด ${pctTxt(T[i].park / T[i].tot)} (${T[i].park}/${T[i].tot})</title></circle>` : '').join('')}</svg>`;
+  const hourly = P.mode === 'day', td = today();
+  let chartA, chartB = '';
+  if (hourly) {
+    const HRS = []; for (let h = 6; h <= 21; h++) { const a = String(h).padStart(2, '0') + ':00', z = String(h + 1).padStart(2, '0') + ':00', v = D.tv.filter(x => x.t.from < z && x.t.to > a).length; HRS.push({ label: h + ' น.', v, tip: `${a}–${z} น.: มีรถชั่วคราวในลาน ${v} คัน` }); }
+    chartA = chartCard('รถชั่วคราวในลาน แต่ละชั่วโมง', 'แต่ละแท่ง = จำนวนรถชั่วคราวที่อยู่ในลานช่วงชั่วโมงนั้น (ตามเวลาที่ขอเข้า–ออก)', barChart(HRS, { unit: 'คัน', label: 'รถชั่วคราวรายชั่วโมง' }));
+  } else {
+    const A = D.trend.map(x => { const lbl = D.byMonth ? TH_MON[+x.b.slice(5) - 1] : dLab(x.b), when = D.byMonth ? monLabel(x.b, true) : fmtDate(x.b); const fut = D.byMonth ? x.b > td.slice(0, 7) : x.b > td, now = D.byMonth ? x.b === td.slice(0, 7) : x.b === td;
+      return { label: lbl, v: x.temp, cls: now ? 'now' : fut ? 'future' : '', tip: `${when}: รถชั่วคราว ${x.temp} ${D.byMonth ? 'ครั้ง' : 'คัน'}${fut ? ' (จองล่วงหน้า)' : ''}` }; });
+    const hasFut = A.some(x => x.cls === 'future'), hasNow = A.some(x => x.cls === 'now');
+    chartA = chartCard(`รถชั่วคราวเข้าจอด ${D.byMonth ? 'รายเดือน' : 'รายวัน'}`, D.byMonth ? 'แต่ละแท่ง = จำนวนครั้งที่รถชั่วคราวเข้าจอดในเดือนนั้น (1 คัน 1 วัน = 1 ครั้ง)' : 'แต่ละแท่ง = จำนวนรถชั่วคราวที่ขอเข้าจอดในวันนั้น (คัน)',
+      barChart(A, { unit: D.byMonth ? 'ครั้ง' : 'คัน', label: 'รถชั่วคราวเข้าจอด' }),
+      `<span><i class="lg lg-a"></i>วันที่ผ่านมา</span>${hasNow ? `<span><i class="lg lg-now"></i>${D.byMonth ? 'เดือนนี้' : 'วันนี้'}</span>` : ''}${hasFut ? '<span><i class="lg lg-fut"></i>จองล่วงหน้า (ยังไม่ถึงวัน)</span>' : ''}`);
+    const B = D.trend.filter(x => D.byMonth ? x.b <= td.slice(0, 7) : x.b <= td).map(x => ({ label: D.byMonth ? TH_MON[+x.b.slice(5) - 1] : dLab(x.b), v: x.tot ? x.park / x.tot * 100 : null, cls: 'pct', tip: x.tot ? `${D.byMonth ? monLabel(x.b, true) : fmtDate(x.b)}: มาจอด ${x.park} จาก ${x.tot} ช่องที่ตรวจ (${pctTxt(x.park / x.tot)})` : 'ไม่ได้ตรวจ' }));
+    chartB = B.some(x => x.v != null) ? chartCard(`ช่องประจำ: % ที่มาจอดจริง ${D.byMonth ? 'รายเดือน' : 'รายวัน'}`, 'แต่ละแท่ง = จากช่องประจำที่ รปภ. ตรวจ มีกี่ % ที่เจอรถทะเบียนของเจ้าของช่อง (ยิ่งสูงยิ่งใช้ช่องคุ้ม) · ขีด – = วันที่ไม่ได้ตรวจ',
+      barChart(B, { pct: true, unit: '% มาจอด', label: 'อัตราการมาจอดช่องประจำ' })) : '';
+  }
   const hb = (title, pairs) => { const m = Math.max(1, ...pairs.map(p => p[1])); return `<div class="card third"><h3>${title}</h3>${pairs.length ? pairs.slice(0, 8).map(([k, v]) => `<div class="hbar"><span class="lbl" title="${esc(k)}">${esc(k)}</span><div><div class="bar" style="width:${v / m * 100}%"></div></div><span class="n">${v}</span></div>`).join('') : '<p class="muted">ไม่มีข้อมูลในช่วงนี้</p>'}</div>`; };
   const lowP = D.pRows.filter(r => r.pct != null).sort((a, b) => a.pct - b.pct).slice(0, 8).map(r => [`${r.slot} ${r.person.name}`, Math.round(r.pct * 100)]);
   const hbPct = `<div class="card third"><h3>ช่องประจำ มาจอดน้อยสุด</h3>${lowP.length ? lowP.map(([k, v]) => `<div class="hbar"><span class="lbl" title="${esc(k)}">${esc(k)}</span><div><div class="bar bar-p" style="width:${v}%"></div></div><span class="n">${v}%</span></div>`).join('') : '<p class="muted">ยังไม่มีผลตรวจในช่วงนี้</p>'}</div>`;
@@ -1168,7 +1207,7 @@ function renderPeriod() {
       <button class="btn pri" data-act="per-xlsx" type="button">ดาวน์โหลด Excel</button></div></div>
     ${kpis}
     <div class="sum-grid">
-      <div class="card wide"><h3>${hourly ? 'รถชั่วคราวในลาน แต่ละชั่วโมง' : 'แนวโน้ม' + (D.byMonth ? 'รายเดือน' : 'รายวัน')}</h3><div class="legend" style="margin:0 0 6px"><span><i class="lg" style="background:var(--mark)"></i>รถชั่วคราว (${hourly ? 'คัน' : 'ครั้ง'})</span>${hourly ? '' : '<span><i class="lg line"></i>ช่องประจำมาจอด (%)</span>'}</div><div class="chart">${svg}</div></div>
+      ${chartA}${chartB}
       ${hb('รถชั่วคราว ตามสถานที่', D.byZone)}${hb('รถชั่วคราว ตามประเภทผู้จอด', D.byKind)}${hbPct}
       <div class="card wide"><div class="per-th"><h3>ใครมาจอดเท่าไหร่</h3><div class="seg">${[['temp', `รถชั่วคราว (${D.tRows.length})`], ['perm', `ช่องประจำ (${D.pRows.length})`]].map(([k, v]) => `<button type="button" data-act="per-view" data-v="${k}" aria-selected="${P.view === k}">${v}</button>`).join('')}</div></div>
       <div class="table-wrap per-tbl">${P.view === 'perm' ? pTbl : tTbl}</div></div>
@@ -1177,18 +1216,18 @@ function renderPeriod() {
 function exportPeriodXlsx() {
   const P = perState(), [s, e] = perRange(P.mode, P.a), D = periodData(s, e, P.zone), title = `${P_MODES[P.mode]} ${perLabel(P.mode, P.a)}${P.zone ? ' · ' + zoneName(P.zone) : ''}`;
   const H = a => a.map(v => ({ v, s: 2 }));
-  const sum = [[{ v: `สรุปการใช้ที่จอด ${title}`, s: 1 }], [{ v: `ช่วงวันที่ ${fmtDate(s)} ถึง ${fmtDate(e)} · สร้างจากแอปที่จอดรถ ${fmtTs(Date.now())}`, s: 9 }], [],
+  const sum = [[{ v: `สรุปการใช้ที่จอด ${title}`, s: 1 }], [{ v: `ช่วงวันที่ ${dmy(s)} ถึง ${dmy(e)} · สร้างจากแอปที่จอดรถ ${fmtTs(Date.now())}`, s: 9 }], [],
     H(['รายการ', 'จำนวน']), [{ v: 'รถชั่วคราวเข้าจอด (ครั้ง)', s: 3 }, { v: D.tv.length, s: 4 }], [{ v: 'ทะเบียนรถชั่วคราวไม่ซ้ำ (คัน)', s: 3 }, { v: D.plates, s: 4 }],
     [{ v: 'ช่องประจำมาจอด (คน-วัน)', s: 3 }, { v: D.park, s: 4 }], [{ v: 'ช่องประจำที่ตรวจ (ครั้ง)', s: 3 }, { v: D.tot, s: 4 }], [{ v: 'อัตราการมาจอดช่องประจำ', s: 3 }, D.pct == null ? { v: '', s: 4 } : { v: D.pct, s: 6 }],
     [{ v: 'วันที่มีการตรวจเช็ค', s: 3 }, { v: D.ckDays, s: 4 }], [{ v: 'ทะเบียนไม่ตรง (ครั้ง)', s: 3 }, { v: D.wrong, s: 4 }], [],
     H([D.byMonth ? 'เดือน' : 'วันที่', 'รถชั่วคราว (ครั้ง)', 'ช่องประจำมาจอด', 'ช่องประจำที่ตรวจ', '% มาจอด']),
-    ...D.trend.map(x => [{ v: D.byMonth ? monLabel(x.b, true) : fmtDate(x.b), s: 3 }, { v: x.temp, s: 4 }, { v: x.park, s: 4 }, { v: x.tot, s: 4 }, x.tot ? { v: x.park / x.tot, s: 6 } : { v: '', s: 4 }])];
+    ...D.trend.map(x => [{ v: D.byMonth ? monLabel(x.b, true) : dmy(x.b), s: 3 }, { v: x.temp, s: 4 }, { v: x.park, s: 4 }, { v: x.tot, s: 4 }, x.tot ? { v: x.park / x.tot, s: 6 } : { v: '', s: 4 }])];
   const tS = [[{ v: `รถชั่วคราว ${title}`, s: 1 }], H(['ลำดับ', 'ชื่อ / บริษัท', 'ทะเบียน', 'ประเภท', 'สถานที่', 'จำนวนวัน', 'มาล่าสุด']),
-    ...D.tRows.map((r, i) => [{ v: i + 1, s: 4 }, { v: r.name, s: 3 }, { v: r.plate, s: 3 }, { v: [...r.kinds].join(', '), s: 3 }, { v: [...r.zones].join(', '), s: 3 }, { v: r.n, s: 4 }, { v: fmtDate(r.last), s: 4 }])];
+    ...D.tRows.map((r, i) => [{ v: i + 1, s: 4 }, { v: r.name, s: 3 }, { v: r.plate, s: 3 }, { v: [...r.kinds].join(', '), s: 3 }, { v: [...r.zones].join(', '), s: 3 }, { v: r.n, s: 4 }, { v: dmy(r.last), s: 4 }])];
   const pS = [[{ v: `ช่องประจำ ${title}`, s: 1 }], H(['ลำดับ', 'สถานที่', 'ช่อง', 'ชื่อ-นามสกุล', 'รหัส', 'แผนก', 'ทะเบียน', 'วันที่จอด', 'วันทั้งหมด', '%']),
     ...D.pRows.map((r, i) => { const ri = i + 3; return [{ v: i + 1, s: 4 }, { v: zoneName(r.zone), s: 3 }, { v: r.slot, s: 4 }, { v: r.person.name, s: 3 }, { v: r.person.empId || '', s: 3 }, { v: r.person.dept || '', s: 3 }, { v: r.person.plate || '', s: 3 }, { v: r.park, s: 4 }, { v: r.tot, s: 4 }, { f: `IF(I${ri}>0,H${ri}/I${ri},"")`, v: r.pct == null ? '' : r.pct, s: 6 }]; })];
   const lS = [[{ v: `รายการรถชั่วคราวรายวัน ${title}`, s: 1 }], H(['วันที่', 'เวลา', 'ชื่อ / บริษัท', 'ทะเบียน', 'ประเภท', 'สถานที่', 'ช่อง', 'หมายเหตุ', 'บันทึกโดย']),
-    ...D.tv.slice().sort((a, b) => a.d.localeCompare(b.d) || a.t.from.localeCompare(b.t.from)).map(({ t, d }) => [{ v: fmtDate(d), s: 3 }, { v: `${t.from}–${t.to}`, s: 4 }, { v: t.name, s: 3 }, { v: t.plate, s: 3 }, { v: t.kind || '', s: 3 }, { v: zoneName(t.zone), s: 3 }, { v: t.slot || '', s: 4 }, { v: t.note || '', s: 3 }, { v: t.createdBy || '', s: 3 }])];
+    ...D.tv.slice().sort((a, b) => a.d.localeCompare(b.d) || a.t.from.localeCompare(b.t.from)).map(({ t, d }) => [{ v: dmy(d), s: 3 }, { v: `${t.from}–${t.to}`, s: 4 }, { v: t.name, s: 3 }, { v: t.plate, s: 3 }, { v: t.kind || '', s: 3 }, { v: zoneName(t.zone), s: 3 }, { v: t.slot || '', s: 4 }, { v: t.note || '', s: 3 }, { v: t.createdBy || '', s: 3 }])];
   const blob = xBook([{ name: 'สรุป', xml: xSheet(sum, { widths: [30, 18, 16, 16, 12], merges: ['A1:E1', 'A2:E2'] }) },
     { name: 'รถชั่วคราว', xml: xSheet(tS, { widths: [7, 32, 14, 22, 26, 11, 14], merges: ['A1:G1'], freeze: [0, 2] }) },
     { name: 'ช่องประจำ', xml: xSheet(pS, { widths: [7, 20, 7, 26, 12, 20, 14, 10, 11, 9], merges: ['A1:J1'], freeze: [0, 2] }) },
@@ -1268,6 +1307,7 @@ function renderRate() {
     ${rows.map(r => `<tr class="${th != null && r.pct != null && r.pct < th ? 'rate-low' : ''}"><td>${esc(r.z.name)}</td><td class="nw"><b>${esc(r.slot)}</b></td><td>${esc(r.person.name)}${r.person.dept ? `<div class="sub">${esc(r.person.dept)}</div>` : ''}</td><td class="nw">${esc(r.person.plate)}</td>
       ${months.map(m => `<td class="num">${cell(r.m[m])}</td>`).join('')}<td class="num rate-tot">${cell(r)}<i class="rate-bar"><i style="width:${r.pct == null ? 0 : Math.round(r.pct * 100)}%"></i></i></td></tr>`).join('')}
     </tbody></table></div>` : '<p class="muted" style="padding:18px 0">ยังไม่มีผลตรวจเช็คในช่วงเดือนนี้</p>'}</div>`;
+  thaiDates(box);
 }
 function rateBind() {
   document.addEventListener('change', e => {
@@ -1448,18 +1488,18 @@ function exportData() {
   const q = $('dQ').value.trim().toLowerCase(), fz = $('dZone').value, f = $('dStatus').value;
   if (S.dtab === 'chk') {
     const rows = [['วันที่', 'กะ', 'สถานที่', 'ช่อง', 'ผู้มีสิทธิ์จอด', 'ทะเบียนที่ลงไว้', 'ผลตรวจ', 'ทะเบียนที่พบ', 'หมายเหตุ', 'ผู้ตรวจ', 'บัญชีที่ใช้', 'เวลา']];
-    dataRowsChk(q, fz, f).forEach(({ c }) => sortSlots(Object.values(c.items || {}).filter(i => i && i.r).map(i => i.slot)).forEach(sl => { const it = c.items[ckKey(sl)]; rows.push([c.date, SHIFTS[ckShiftOf(c)].name, zoneName(c.zone), sl, it.exp ? it.exp.name : '', it.exp ? it.exp.plate : '', ckLabel(it.r, !!it.exp), it.seen || '', it.note || '', it.by || '', it.acct || '', fmtTs(it.at)]); }));
+    dataRowsChk(q, fz, f).forEach(({ c }) => sortSlots(Object.values(c.items || {}).filter(i => i && i.r).map(i => i.slot)).forEach(sl => { const it = c.items[ckKey(sl)]; rows.push([dmy(c.date), SHIFTS[ckShiftOf(c)].name, zoneName(c.zone), sl, it.exp ? it.exp.name : '', it.exp ? it.exp.plate : '', ckLabel(it.r, !!it.exp), it.seen || '', it.note || '', it.by || '', it.acct || '', fmtTs(it.at)]); }));
     return download(`ประวัติตรวจเช็ค-${today()}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
   }
   if (S.dtab === 'perm') download(`ช่องประจำ-${today()}.csv`, toCSV([['ชื่อ-นามสกุล', 'รหัสพนักงาน', 'ทะเบียนรถ', 'แผนก', 'ฝ่าย', 'สถานที่', 'หมายเลขช่อง', 'สถานะ', 'แก้ไขล่าสุด', 'แก้ไขโดย']]
     .concat(dataRowsPerm(q, fz, f).map(p => [p.name, p.empId, p.plate, p.dept, p.division, zoneName(p.zone), p.slot, p.active ? 'ใช้งานอยู่' : 'คืนช่องแล้ว', fmtTs(p.updatedAt), p.updatedBy || '']))), 'text/csv;charset=utf-8');
   else download(`จองชั่วคราว-${today()}.csv`, toCSV([['วันที่เริ่ม', 'ถึงวันที่', 'เวลาเข้า', 'เวลาออก', 'ชื่อ/บริษัท', 'ทะเบียนรถ', 'สถานที่', 'ช่อง', 'ประเภท', 'หมายเหตุ', 'สถานะ', 'บันทึกโดย', 'บันทึกเมื่อ']]
-    .concat(dataRowsTemp(q, fz, f).map(t => [t.date, dEnd(t), t.from, t.to, t.name, t.plate, zoneName(t.zone), t.slot, t.kind, t.note, ST_TXT[tStatus(t)], t.createdBy || '', fmtTs(t.createdAt)]))), 'text/csv;charset=utf-8');
+    .concat(dataRowsTemp(q, fz, f).map(t => [dmy(t.date), dmy(dEnd(t)), t.from, t.to, t.name, t.plate, zoneName(t.zone), t.slot, t.kind, t.note, ST_TXT[tStatus(t)], t.createdBy || '', fmtTs(t.createdAt)]))), 'text/csv;charset=utf-8');
 }
 function exportSum() {
   const R = +$('sRange').value || 30, d0 = addDays(today(), -(R - 1)), tl = rangeTemps(R), rows = [['วันที่', 'สถานที่', 'ประเภทผู้จอด', 'จำนวนคำขอ']], m = new Map();
   tl.forEach(t => daysOf(t, d0).filter(d => d <= today()).forEach(d => { const k = [d, zoneName(t.zone), t.kind || ''].join('\u0001'); m.set(k, (m.get(k) || 0) + 1); }));
-  [...m.entries()].sort().forEach(([k, v]) => rows.push([...k.split('\u0001'), v]));
+  [...m.entries()].sort().forEach(([k, v]) => { const a = k.split('\u0001'); a[0] = dmy(a[0]); rows.push([...a, v]); });
   download(`สรุปที่จอด-${d0}-ถึง-${today()}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
 }
 function parseCSV(text) {
@@ -1864,7 +1904,7 @@ function bindEvents() {
   $('tZone').addEventListener('change', () => { S.tZone = $('tZone').value; saveUi(); renderToday(); });
   $('bDateTo').addEventListener('change', refreshSheetSlots);
   $('sRange').addEventListener('change', renderSum);
-  rateBind();
+  rateBind(); thaiDates();
   ['dQ', 'dZone', 'dStatus'].forEach(i => $(i).addEventListener('input', renderData));
   $('bForm').addEventListener('submit', submitSheet);
   $('bZone').addEventListener('change', () => { sheetZone = $('bZone').value; sheetSlot = ''; refreshSheetSlots(); });

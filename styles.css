@@ -690,3 +690,31 @@ svg.car.perm{color:#2C83D0} svg.car.temp{color:#F7941D} .slot.t-vip svg.car.temp
 @media (max-width:480px){.pk b{font-size:1.6rem}.pk-c{flex-direction:column;align-items:flex-start}}
 .per-tbl{max-height:620px;overflow:auto}
 .per-tbl thead th{position:sticky;top:0;background:var(--paper2);z-index:1}
+
+/* กราฟแท่งแบบอ่านง่าย */
+.chart-sub{margin:-2px 0 6px;font-size:.86rem;color:var(--muted)}
+.chart-lg{margin:0 0 6px}
+.bchart{width:100%;height:auto;display:block;overflow:visible}
+.bchart .gl{stroke:var(--line);stroke-dasharray:3 4}
+.bchart .gl.g0{stroke:var(--muted);stroke-dasharray:none}
+.bchart .ax{font-size:13px;fill:var(--muted)}
+.bchart .unit{font-weight:600}
+.bchart .xl{font-size:13px;fill:var(--muted)}
+.bchart .xl.xnow{fill:var(--mark-ink);font-weight:700}
+.bchart .bv{font-size:13px;font-weight:700;fill:var(--ink)}
+.bchart .nd{font-size:14px;fill:var(--muted)}
+.bchart .b rect{fill:var(--sign)}
+.bchart .b.now rect{fill:var(--mark)}
+.bchart .b.future rect{fill:var(--sign-soft);stroke:var(--sign);stroke-width:1.2;stroke-dasharray:4 3}
+.bchart .b.future .bv{fill:var(--muted);font-weight:600}
+.bchart .b.pct rect{fill:#2E9E6B}
+.lg.lg-a{background:var(--sign)} .lg.lg-now{background:var(--mark)}
+.lg.lg-fut{background:var(--sign-soft);border:1.5px dashed var(--sign)}
+
+/* ช่องวันที่แสดงเป็น วว/ดด/ปปปป */
+.dpw{position:relative;display:inline-flex;align-items:center}
+.dpw>input{color:transparent!important}
+.dpw>input::-webkit-datetime-edit{opacity:0}
+.dpw .dpv{position:absolute;left:12px;right:34px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f .dpw,.rate-ctl .dpw{display:flex;width:100%}
+.f .dpw>input,.rate-ctl .dpw>input{width:100%}
