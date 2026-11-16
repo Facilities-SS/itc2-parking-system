@@ -145,14 +145,16 @@
     <section id="tab-sum" class="tab" hidden>
       <div class="page-head">
         <div><h2>สรุปการใช้ที่จอด</h2><p class="muted" id="sumLead"></p></div>
-        <div class="row-gap">
+        <div class="seg sum-tabs" role="tablist"><button type="button" data-act="stab" data-s="period" aria-selected="true">สรุปตามช่วงเวลา</button><button type="button" data-act="stab" data-s="rate">% ช่องประจำ หลายเดือน</button><button type="button" data-act="stab" data-s="over">ภาพรวมล่าสุด</button></div>
+        <div class="row-gap" id="sumOverCtl" hidden>
           <select id="sRange" aria-label="ช่วงเวลา">
             <option value="7">7 วันล่าสุด</option><option value="30" selected>30 วันล่าสุด</option><option value="90">90 วันล่าสุด</option>
           </select>
           <button class="btn ghost" data-act="export-sum" type="button">ส่งออก CSV</button>
         </div>
       </div>
-      <div id="rateBody"></div>
+      <div id="perBody"></div>
+      <div id="rateBody" hidden></div>
       <div id="sumBody"></div>
     </section>
 

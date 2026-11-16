@@ -82,7 +82,19 @@ const ROLE_TXT = { admin: 'ผู้ดูแลระบบ', member: 'สม�
 function readAccess(d) { d = d || {}; return { members: d.members || [], admins: d.admins || [], guards: d.guards || [], names: d.names || {} }; }
 function roleOf(em) { em = String(em || '').toLowerCase(); return access.admins.includes(em) ? 'admin' : access.members.includes(em) ? 'member' : access.guards.includes(em) ? 'guard' : ''; }
 function applyRole() { const r = roleOf(user && user.email); isAdmin = r === 'admin'; isGuard = r === 'guard'; document.body.classList.toggle('as-guard', isGuard); return r; }
-const GUARD_TABS = ['map', 'chk', 'set'];
+const GUARD_TABS = ['map', 'today', 'chk', 'set'];
+/* รปภ. เพิ่มรถชั่วคราวได้ แก้/ยกเลิกได้เฉพาะรายการที่ตัวเองเพิ่ม (กฎ Firestore ตรวจซ้ำ) */
+const ownTemp = t => !!t && !!t.createdAcct && t.createdAcct === myAcct();
+const canEditTemp = t => !isGuard || ownTemp(t);
+function guardTrim(root) {   // ซ่อนปุ่มที่ รปภ. ใช้ไม่ได้
+  if (!isGuard || !root) return;
+  root.querySelectorAll('[data-act]').forEach(b => {
+    const a = b.dataset.act;
+    if (a === 'edit-temp' || a === 'cancel-temp') { if (!canEditTemp(db.temp.find(x => x.id === b.dataset.id))) b.remove(); }
+    else if (GUARD_DENY.has(a)) b.remove();
+  });
+  root.querySelectorAll('.p-actions').forEach(e => { if (!e.children.length) e.remove(); });
+}
 let fs = null, col = null, locks = null, auth = null, unsub = [];
 let netState = 'wait';
 const S = {                           // สถานะหน้าจอ
@@ -104,8 +116,10 @@ const zoneName = id => (getZone(id) || { name: '(ไม่พบสถานท�
 const capOf = z => z ? (z.free ? (+z.capacity || 0) : z.slots.length) : 0;
 const hasSlot = (z, s) => !!z && z.slots.some(x => normSlot(x) === normSlot(s));
 const by = () => user ? ((access.names || {})[user.email] || user.name || shortId(user.email)) : '';
-function stamp(r, a) { const n = Date.now(); r.createdAt = n; r.updatedAt = n; r.createdBy = by(); r.log = [{ at: n, a, by: by() }]; return r; }
-function touch(r, a) { const n = Date.now(); r.updatedAt = n; r.updatedBy = by(); r.log = (r.log || []).concat({ at: n, a, by: by() }).slice(-40); return r; }
+const myAcct = () => user && user.email ? String(user.email).toLowerCase() : '';
+const whoNow = () => { if (!isGuard) return by(); try { const c = curShift(), n = inspectorFor(c.date, c.sh); return n ? `${n} (${by()})` : by(); } catch (e) { return by(); } };
+function stamp(r, a) { const n = Date.now(); r.createdAt = n; r.updatedAt = n; r.createdBy = whoNow(); r.createdAcct = myAcct(); r.log = [{ at: n, a, by: by() }]; return r; }
+function touch(r, a) { const n = Date.now(); r.updatedAt = n; r.updatedBy = whoNow(); r.log = (r.log || []).concat({ at: n, a, by: whoNow() }).slice(-40); return r; }
 
 /* จองชั่วคราวได้หลายวันต่อเนื่อง: date = วันแรก, dateTo = วันสุดท้าย (ไม่มี = วันเดียว) ใช้ช่วงเวลา from–to เดียวกันทุกวัน */
 const MAX_DAYS = 186;   // จองต่อเนื่องได้สูงสุดประมาณ 6 เดือน
@@ -583,7 +597,7 @@ function layoutStage() {
 }
 
 /* ---------- แผงรายละเอียด ---------- */
-function renderPanel(z, o) { renderPanelInner(z, o); if (isGuard) $('panel').querySelectorAll('.p-actions').forEach(e => e.remove()); }
+function renderPanel(z, o) { renderPanelInner(z, o); guardTrim($('panel')); }
 function renderPanelInner(z, o) {
   const p = $('panel'), sel = S.sel;
   const win = `${fmtDate(S.vDate)} ${S.vFrom}–${S.vTo} น.`;
@@ -676,6 +690,8 @@ function openSheet(o = {}) {
   $('bNote').value = r ? (r.note || '') : '';
   $('bEmp').value = r ? (r.empId || '') : ''; $('bDept').value = r ? (r.dept || '') : ''; $('bDiv').value = r ? (r.division || '') : '';
   sheetZone = r ? r.zone : (o.zone || (bType === 'temp' ? ((db.zones.find(z => z.free) || {}).id || S.zone) : S.zone)); sheetSlot = r ? (r.slot || '') : (o.slot != null ? o.slot : '');
+  if (isGuard) bType = 'temp';
+  const pb = document.querySelector('#bType [data-type="perm"]'); if (pb) pb.hidden = isGuard;
   setSheetType(bType, true);
   $('bErr').hidden = true; $('sheet').hidden = false; document.body.style.overflow = 'hidden';
   setTimeout(() => $('bName').focus(), 30);
@@ -814,6 +830,7 @@ function renderToday() {
         <div class="req-act noprint"><button class="link" data-act="goto-temp" data-id="${esc(t.id)}">ดูในผัง</button><button class="link" data-act="edit-temp" data-id="${esc(t.id)}">แก้ไข</button>${isLive(t) ? `<button class="link" data-act="cancel-temp" data-id="${esc(t.id)}">ยกเลิก</button>` : ''}<button class="link danger" data-act="del-temp" data-id="${esc(t.id)}">ลบ</button></div></div>`;
     }).join('')}</div>`;
   }).join('');
+  guardTrim($('todayBody'));
 }
 function todayText() {   // ข้อความสรุปสำหรับวางใน LINE ส่ง รปภ.
   const d = S.tDate, list = todayRows().filter(t => !t.cancelled).sort((a, b) => a.from.localeCompare(b.from));
@@ -1016,6 +1033,12 @@ function checkStats(days) {   // สำหรับหน้าสรุป
 /* ---------- สรุป ---------- */
 function rangeTemps(days) { const from = addDays(today(), -(days - 1)), to = today(); return db.temp.filter(t => !t.cancelled && t.date <= to && dEnd(t) >= from); }
 function renderSum() {
+  const st = S.stab || 'period';
+  document.querySelectorAll('[data-act="stab"]').forEach(b => b.setAttribute('aria-selected', b.dataset.s === st));
+  $('perBody').hidden = st !== 'period'; $('rateBody').hidden = st !== 'rate'; $('sumBody').hidden = st !== 'over'; $('sumOverCtl').hidden = st !== 'over';
+  $('sumLead').textContent = st === 'period' ? 'ใครมาจอดเท่าไหร่ ทั้งรถชั่วคราวและช่องประจำ' : st === 'rate' ? '% การมาจอดช่องประจำ เทียบหลายเดือน' : '';
+  if (st === 'period') return renderPeriod();
+  if (st === 'rate') return renderRate();
   const R = +$('sRange').value || 30, d0 = addDays(today(), -(R - 1)), tl = rangeTemps(R), n = nowHM();
   $('sumLead').textContent = `${fmtDate(d0)} ถึง ${fmtDate(today())}`;
   let cap = 0, usedNow = 0;
@@ -1046,7 +1069,132 @@ function renderSum() {
       const pc = v => c.owned ? Math.round(v / c.owned * 100) + '%' : '—';
       return `<div class="card wide"><h3>ผลตรวจเช็ค ${c.rounds} ครั้ง (วัน × กะ × สถานที่)</h3><div class="kpis" style="margin:0 0 14px"><div class="kpi"><b>${pc(c.ok)}</b><span>มีรถ ทะเบียนตรง</span></div><div class="kpi"><b>${pc(c.none)}</b><span>ช่องประจำที่ไม่มีรถจอด</span></div><div class="kpi"><b>${c.wrong}</b><span>ทะเบียนไม่ตรง / รถอื่นจอด</span></div><div class="kpi"><b>${c.owned}</b><span>ช่องประจำที่ตรวจ (ครั้ง)</span></div></div></div>`
         + hb('ช่องประจำที่ไม่มีรถจอดบ่อย', [...c.noneBy.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)) + hb('ทะเบียนไม่ตรงบ่อย', [...c.wrongBy.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)); })()}</div>`;
-  renderRate();
+}
+
+/* ================= สรุปตามช่วงเวลา: รายวัน / รายสัปดาห์ / รายเดือน / ทั้งปี =================
+   รถชั่วคราว: นับจากคำขอที่ไม่ถูกยกเลิก 1 คัน 1 วัน = 1 ครั้ง (จองหลายวันนับทุกวันที่อยู่ในช่วง)
+   ช่องประจำ: นับจากผลตรวจเช็ค วันที่ทะเบียนตรงกะใดกะหนึ่ง = มาจอด / วันที่ช่องนั้นถูกตรวจ = วันทั้งหมด */
+const P_MODES = { day: 'รายวัน', week: 'รายสัปดาห์', month: 'รายเดือน', year: 'ทั้งปี' };
+const dowOf = d => new Date(d + 'T00:00:00Z').getUTCDay();
+function perRange(mode, a) {
+  if (mode === 'day') return [a, a];
+  if (mode === 'week') { const s = addDays(a, -((dowOf(a) + 6) % 7)); return [s, addDays(s, 6)]; }
+  if (mode === 'month') { const ym = a.slice(0, 7); return [ym + '-01', `${ym}-${String(monDays(ym)).padStart(2, '0')}`]; }
+  return [a.slice(0, 4) + '-01-01', a.slice(0, 4) + '-12-31'];
+}
+function perLabel(mode, a) {
+  const [s, e] = perRange(mode, a), y = n => +n + 543;
+  if (mode === 'day') return fDL.format(toD(s));
+  if (mode === 'week') return `${fDS.format(toD(s))} – ${fD.format(toD(e))}`;
+  if (mode === 'month') return monLabel(s.slice(0, 7), true);
+  return `ปี ${y(s.slice(0, 4))}`;
+}
+function perShift(mode, a, n) {
+  if (mode === 'day') return addDays(a, n);
+  if (mode === 'week') return addDays(a, 7 * n);
+  if (mode === 'month') { let [y, m] = a.slice(0, 7).split('-').map(Number); m += n; while (m > 12) { m -= 12; y++; } while (m < 1) { m += 12; y--; } return `${y}-${String(m).padStart(2, '0')}-01`; }
+  return `${+a.slice(0, 4) + n}-01-01`;
+}
+const perState = () => S.per || (S.per = { mode: 'month', a: today(), zone: '', view: 'temp' });
+const dayList = (s, e) => { const out = []; for (let d = s; d <= e && out.length < 370; d = addDays(d, 1)) out.push(d); return out; };
+function periodData(s, e, zid) {
+  const days = dayList(s, e);
+  // รถชั่วคราว
+  const temps = db.temp.filter(t => !t.cancelled && (!zid || t.zone === zid) && t.date <= e && dEnd(t) >= s);
+  const tv = [];   // [{t, d}]
+  temps.forEach(t => days.forEach(d => { if (onDay(t, d)) tv.push({ t, d }); }));
+  const who = new Map();
+  tv.forEach(({ t, d }) => {
+    const k = normName(t.name).toLowerCase() + '|' + String(t.plate || '').replace(/\s+/g, '');
+    if (!who.has(k)) who.set(k, { name: t.name, plate: t.plate, kinds: new Set(), zones: new Set(), days: new Set(), last: d });
+    const o = who.get(k); o.kinds.add(t.kind || 'ชั่วคราว'); o.zones.add(zoneName(t.zone)); o.days.add(d); if (d > o.last) o.last = d;
+  });
+  const tRows = [...who.values()].map(o => ({ ...o, n: o.days.size })).sort((a, b) => b.n - a.n || b.last.localeCompare(a.last));
+  // ช่องประจำ
+  const per = new Map(), ckDays = new Set(); let wrong = 0;
+  db.checks.filter(c => c.date >= s && c.date <= e && (!zid || c.zone === zid)).forEach(c => Object.values(c.items || {}).forEach(it => {
+    if (!it || !it.r) return; ckDays.add(c.date);
+    if (it.r === 'wrong') wrong++;
+    if (!it.exp) return;
+    const p = personOf(it.exp), k = c.zone + '|' + normSlot(it.slot) + '|' + p.key;
+    if (!per.has(k)) per.set(k, { zone: c.zone, slot: it.slot, person: p, d: {} });
+    const o = per.get(k); o.d[c.date] = Math.max(o.d[c.date] ?? 0, it.r === 'ok' ? 1 : 0);
+  }));
+  const pRows = [...per.values()].map(o => { const v = Object.values(o.d); return { ...o, park: v.filter(x => x === 1).length, tot: v.length }; })
+    .map(o => ({ ...o, pct: o.tot ? o.park / o.tot : null }))
+    .sort((a, b) => zoneName(a.zone).localeCompare(zoneName(b.zone)) || String(a.slot).localeCompare(String(b.slot), undefined, { numeric: true }));
+  const park = pRows.reduce((x, r) => x + r.park, 0), tot = pRows.reduce((x, r) => x + r.tot, 0);
+  // แนวโน้ม: รายวัน (ปี = รายเดือน)
+  const byMonth = days.length > 62, buckets = byMonth ? [...new Set(days.map(d => d.slice(0, 7)))] : days;
+  const key = d => byMonth ? d.slice(0, 7) : d;
+  const trend = buckets.map(b => ({ b, temp: tv.filter(x => key(x.d) === b).length, park: 0, tot: 0 }));
+  const tIdx = new Map(trend.map((x, i) => [x.b, i]));
+  pRows.forEach(r => Object.entries(r.d).forEach(([d, v]) => { const x = trend[tIdx.get(key(d))]; if (x) { x.tot++; x.park += v; } }));
+  const group = (arr, f) => { const m = new Map(); arr.forEach(x => { const k = f(x) || '(ไม่ระบุ)'; m.set(k, (m.get(k) || 0) + 1); }); return [...m.entries()].sort((a, b) => b[1] - a[1]); };
+  return { s, e, days, tv, tRows, plates: new Set(tv.map(x => String(x.t.plate || '').replace(/\s+/g, ''))).size, pRows, park, tot, pct: tot ? park / tot : null, ckDays: ckDays.size, wrong, trend, byMonth,
+    byZone: group(tv, x => zoneName(x.t.zone)), byKind: group(tv, x => x.t.kind || 'ชั่วคราว') };
+}
+function renderPeriod() {
+  const P = perState(), box = $('perBody'); if (!box) return;
+  const [s, e] = perRange(P.mode, P.a), D = periodData(s, e, P.zone), zs = db.zones;
+  const ring = v => { const p = v == null ? 0 : Math.round(v * 100), C = 2 * Math.PI * 26; return `<svg class="ring" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="none" stroke="var(--line)" stroke-width="7"/><circle cx="32" cy="32" r="26" fill="none" stroke="var(--sign)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(C * p / 100).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 32 32)"/><text x="32" y="37" text-anchor="middle">${v == null ? '—' : p + '%'}</text></svg>`; };
+  const kpis = `<div class="pk-grid">
+    <div class="pk pk-a"><b>${D.tv.length}</b><span>รถชั่วคราวเข้าจอด (ครั้ง)</span><small>ทะเบียนไม่ซ้ำ ${D.plates} คัน</small></div>
+    <div class="pk pk-b"><b>${D.park}</b><span>ช่องประจำมาจอด (คน-วัน)</span><small>จากที่ตรวจ ${D.tot} ครั้ง</small></div>
+    <div class="pk pk-c">${ring(D.pct)}<div><b>${D.pct == null ? '—' : pctTxt(D.pct)}</b><span>อัตราการมาจอดช่องประจำ</span><small>${D.pRows.length} คน</small></div></div>
+    <div class="pk pk-d"><b>${D.ckDays}</b><span>วันที่มีการตรวจเช็ค</span><small>ทะเบียนไม่ตรง ${D.wrong} ครั้ง</small></div></div>`;
+  // กราฟแนวโน้ม
+  const hourly = P.mode === 'day', HRS = [];
+  if (hourly) for (let h = 6; h <= 21; h++) { const a = String(h).padStart(2, '0') + ':00', z = String(h + 1).padStart(2, '0') + ':00'; HRS.push({ b: a, temp: D.tv.filter(x => x.t.from < z && x.t.to > a).length, park: 0, tot: 0 }); }
+  const T = hourly ? HRS : D.trend, mx = Math.max(1, ...T.map(x => x.temp)), W = 1200, H = 170, bw = Math.min(70, (W - 40) / Math.max(1, T.length)), x0 = 34 + ((W - 40) - bw * T.length) / 2;
+  const lab = b => hourly ? b.slice(0, 2) + ' น.' : D.byMonth ? TH_MON[+b.slice(5) - 1] : (T.length <= 7 ? fDS.format(toD(b)) : String(+b.slice(8)));
+  const step = T.length <= 12 ? 1 : T.length <= 31 ? (T.length > 20 ? 2 : 1) : 7;
+  const pts = T.map((x, i) => x.tot ? `${(x0 + i * bw + bw / 2).toFixed(1)},${(H - x.park / x.tot * (H - 14)).toFixed(1)}` : null);
+  const svg = `<svg viewBox="0 0 ${W} ${H + 26}" role="img" aria-label="แนวโน้ม${D.byMonth ? 'รายเดือน' : 'รายวัน'}">
+    <line x1="30" y1="${H}" x2="${W}" y2="${H}" stroke="var(--line)"/><text x="0" y="12">${mx}</text><text x="0" y="${H}">0</text>${hourly ? '' : `<text x="${W}" y="12" text-anchor="end" class="pct-ax">100%</text>`}
+    ${T.map((x, i) => { const h = x.temp / mx * (H - 14), X = x0 + i * bw; return `<rect x="${X.toFixed(1)}" y="${(H - h).toFixed(1)}" width="${Math.max(1, bw - 3).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="var(--mark)"><title>${hourly ? x.b + ' น.: รถชั่วคราวในลาน' : (D.byMonth ? monLabel(x.b) : fmtDate(x.b)) + ': รถชั่วคราว'} ${x.temp} ${hourly ? 'คัน' : 'ครั้ง'}${x.tot ? ` · ช่องประจำมาจอด ${pctTxt(x.park / x.tot)}` : ''}</title></rect>${i % step === 0 || i === T.length - 1 ? `<text x="${(X + bw / 2).toFixed(1)}" y="${H + 17}" text-anchor="middle">${lab(x.b)}</text>` : ''}`; }).join('')}
+    ${pts.filter(Boolean).length > 1 ? `<polyline points="${pts.filter(Boolean).join(' ')}" fill="none" stroke="var(--sign)" stroke-width="2.5" stroke-linejoin="round"/>` : ''}
+    ${pts.map((p, i) => p ? `<circle cx="${p.split(',')[0]}" cy="${p.split(',')[1]}" r="3.5" fill="var(--sign)"><title>${D.byMonth ? monLabel(T[i].b) : fmtDate(T[i].b)}: ช่องประจำมาจอด ${pctTxt(T[i].park / T[i].tot)} (${T[i].park}/${T[i].tot})</title></circle>` : '').join('')}</svg>`;
+  const hb = (title, pairs) => { const m = Math.max(1, ...pairs.map(p => p[1])); return `<div class="card third"><h3>${title}</h3>${pairs.length ? pairs.slice(0, 8).map(([k, v]) => `<div class="hbar"><span class="lbl" title="${esc(k)}">${esc(k)}</span><div><div class="bar" style="width:${v / m * 100}%"></div></div><span class="n">${v}</span></div>`).join('') : '<p class="muted">ไม่มีข้อมูลในช่วงนี้</p>'}</div>`; };
+  const lowP = D.pRows.filter(r => r.pct != null).sort((a, b) => a.pct - b.pct).slice(0, 8).map(r => [`${r.slot} ${r.person.name}`, Math.round(r.pct * 100)]);
+  const hbPct = `<div class="card third"><h3>ช่องประจำ มาจอดน้อยสุด</h3>${lowP.length ? lowP.map(([k, v]) => `<div class="hbar"><span class="lbl" title="${esc(k)}">${esc(k)}</span><div><div class="bar bar-p" style="width:${v}%"></div></div><span class="n">${v}%</span></div>`).join('') : '<p class="muted">ยังไม่มีผลตรวจในช่วงนี้</p>'}</div>`;
+  // ตาราง ใครมาจอดเท่าไหร่
+  const tTbl = D.tRows.length ? `<table class="tbl"><thead><tr><th>#</th><th>ชื่อ / บริษัท</th><th>ทะเบียน</th><th>ประเภท</th><th>สถานที่</th><th class="num">จำนวนวัน</th><th>มาล่าสุด</th></tr></thead><tbody>${D.tRows.map((r, i) => `<tr><td class="muted">${i + 1}</td><td>${esc(r.name)}</td><td class="nw"><b>${esc(r.plate)}</b></td><td>${esc([...r.kinds].join(', '))}</td><td>${esc([...r.zones].join(', '))}</td><td class="num"><b>${r.n}</b></td><td class="nw">${fmtDate(r.last)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="padding:16px 0">ไม่มีรถชั่วคราวในช่วงนี้</p>';
+  const pTbl = D.pRows.length ? `<table class="tbl rate-tbl"><thead><tr><th>สถานที่</th><th>ช่อง</th><th>ชื่อ-นามสกุล</th><th>ทะเบียน</th><th class="num">มาจอด</th><th class="num">วันที่ตรวจ</th><th class="num">%</th></tr></thead><tbody>${D.pRows.map(r => `<tr><td>${esc(zoneName(r.zone))}</td><td class="nw"><b>${esc(r.slot)}</b></td><td>${esc(r.person.name)}${r.person.dept ? `<div class="sub">${esc(r.person.dept)}</div>` : ''}</td><td class="nw">${esc(r.person.plate)}</td><td class="num">${r.park}</td><td class="num">${r.tot}</td><td class="num rate-tot"><b>${pctTxt(r.pct)}</b><i class="rate-bar"><i style="width:${Math.round((r.pct || 0) * 100)}%"></i></i></td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="padding:16px 0">ยังไม่มีผลตรวจเช็คช่องประจำในช่วงนี้</p>';
+  box.innerHTML = `<div class="per-bar">
+      <div class="seg" role="tablist">${Object.entries(P_MODES).map(([k, v]) => `<button type="button" data-act="per-mode" data-m="${k}" aria-selected="${P.mode === k}">${v}</button>`).join('')}</div>
+      <div class="per-nav"><button class="btn ghost sm" data-act="per-nav" data-n="-1" type="button" aria-label="ก่อนหน้า">◀</button><b>${esc(perLabel(P.mode, P.a))}</b><button class="btn ghost sm" data-act="per-nav" data-n="1" type="button" aria-label="ถัดไป">▶</button>${perRange(P.mode, P.a)[0] <= today() && today() <= perRange(P.mode, P.a)[1] ? '' : '<button class="link" data-act="per-now" type="button">กลับมาปัจจุบัน</button>'}</div>
+      <div class="per-r"><select id="pZone" aria-label="สถานที่"><option value="">ทุกสถานที่</option>${zs.map(z => `<option value="${esc(z.id)}"${z.id === P.zone ? ' selected' : ''}>${esc(z.name)}</option>`).join('')}</select>
+      <button class="btn pri" data-act="per-xlsx" type="button">ดาวน์โหลด Excel</button></div></div>
+    ${kpis}
+    <div class="sum-grid">
+      <div class="card wide"><h3>${hourly ? 'รถชั่วคราวในลาน แต่ละชั่วโมง' : 'แนวโน้ม' + (D.byMonth ? 'รายเดือน' : 'รายวัน')}</h3><div class="legend" style="margin:0 0 6px"><span><i class="lg" style="background:var(--mark)"></i>รถชั่วคราว (${hourly ? 'คัน' : 'ครั้ง'})</span>${hourly ? '' : '<span><i class="lg line"></i>ช่องประจำมาจอด (%)</span>'}</div><div class="chart">${svg}</div></div>
+      ${hb('รถชั่วคราว ตามสถานที่', D.byZone)}${hb('รถชั่วคราว ตามประเภทผู้จอด', D.byKind)}${hbPct}
+      <div class="card wide"><div class="per-th"><h3>ใครมาจอดเท่าไหร่</h3><div class="seg">${[['temp', `รถชั่วคราว (${D.tRows.length})`], ['perm', `ช่องประจำ (${D.pRows.length})`]].map(([k, v]) => `<button type="button" data-act="per-view" data-v="${k}" aria-selected="${P.view === k}">${v}</button>`).join('')}</div></div>
+      <div class="table-wrap per-tbl">${P.view === 'perm' ? pTbl : tTbl}</div></div>
+    </div>`;
+}
+function exportPeriodXlsx() {
+  const P = perState(), [s, e] = perRange(P.mode, P.a), D = periodData(s, e, P.zone), title = `${P_MODES[P.mode]} ${perLabel(P.mode, P.a)}${P.zone ? ' · ' + zoneName(P.zone) : ''}`;
+  const H = a => a.map(v => ({ v, s: 2 }));
+  const sum = [[{ v: `สรุปการใช้ที่จอด ${title}`, s: 1 }], [{ v: `ช่วงวันที่ ${fmtDate(s)} ถึง ${fmtDate(e)} · สร้างจากแอปที่จอดรถ ${fmtTs(Date.now())}`, s: 9 }], [],
+    H(['รายการ', 'จำนวน']), [{ v: 'รถชั่วคราวเข้าจอด (ครั้ง)', s: 3 }, { v: D.tv.length, s: 4 }], [{ v: 'ทะเบียนรถชั่วคราวไม่ซ้ำ (คัน)', s: 3 }, { v: D.plates, s: 4 }],
+    [{ v: 'ช่องประจำมาจอด (คน-วัน)', s: 3 }, { v: D.park, s: 4 }], [{ v: 'ช่องประจำที่ตรวจ (ครั้ง)', s: 3 }, { v: D.tot, s: 4 }], [{ v: 'อัตราการมาจอดช่องประจำ', s: 3 }, D.pct == null ? { v: '', s: 4 } : { v: D.pct, s: 6 }],
+    [{ v: 'วันที่มีการตรวจเช็ค', s: 3 }, { v: D.ckDays, s: 4 }], [{ v: 'ทะเบียนไม่ตรง (ครั้ง)', s: 3 }, { v: D.wrong, s: 4 }], [],
+    H([D.byMonth ? 'เดือน' : 'วันที่', 'รถชั่วคราว (ครั้ง)', 'ช่องประจำมาจอด', 'ช่องประจำที่ตรวจ', '% มาจอด']),
+    ...D.trend.map(x => [{ v: D.byMonth ? monLabel(x.b, true) : fmtDate(x.b), s: 3 }, { v: x.temp, s: 4 }, { v: x.park, s: 4 }, { v: x.tot, s: 4 }, x.tot ? { v: x.park / x.tot, s: 6 } : { v: '', s: 4 }])];
+  const tS = [[{ v: `รถชั่วคราว ${title}`, s: 1 }], H(['ลำดับ', 'ชื่อ / บริษัท', 'ทะเบียน', 'ประเภท', 'สถานที่', 'จำนวนวัน', 'มาล่าสุด']),
+    ...D.tRows.map((r, i) => [{ v: i + 1, s: 4 }, { v: r.name, s: 3 }, { v: r.plate, s: 3 }, { v: [...r.kinds].join(', '), s: 3 }, { v: [...r.zones].join(', '), s: 3 }, { v: r.n, s: 4 }, { v: fmtDate(r.last), s: 4 }])];
+  const pS = [[{ v: `ช่องประจำ ${title}`, s: 1 }], H(['ลำดับ', 'สถานที่', 'ช่อง', 'ชื่อ-นามสกุล', 'รหัส', 'แผนก', 'ทะเบียน', 'วันที่จอด', 'วันทั้งหมด', '%']),
+    ...D.pRows.map((r, i) => { const ri = i + 3; return [{ v: i + 1, s: 4 }, { v: zoneName(r.zone), s: 3 }, { v: r.slot, s: 4 }, { v: r.person.name, s: 3 }, { v: r.person.empId || '', s: 3 }, { v: r.person.dept || '', s: 3 }, { v: r.person.plate || '', s: 3 }, { v: r.park, s: 4 }, { v: r.tot, s: 4 }, { f: `IF(I${ri}>0,H${ri}/I${ri},"")`, v: r.pct == null ? '' : r.pct, s: 6 }]; })];
+  const lS = [[{ v: `รายการรถชั่วคราวรายวัน ${title}`, s: 1 }], H(['วันที่', 'เวลา', 'ชื่อ / บริษัท', 'ทะเบียน', 'ประเภท', 'สถานที่', 'ช่อง', 'หมายเหตุ', 'บันทึกโดย']),
+    ...D.tv.slice().sort((a, b) => a.d.localeCompare(b.d) || a.t.from.localeCompare(b.t.from)).map(({ t, d }) => [{ v: fmtDate(d), s: 3 }, { v: `${t.from}–${t.to}`, s: 4 }, { v: t.name, s: 3 }, { v: t.plate, s: 3 }, { v: t.kind || '', s: 3 }, { v: zoneName(t.zone), s: 3 }, { v: t.slot || '', s: 4 }, { v: t.note || '', s: 3 }, { v: t.createdBy || '', s: 3 }])];
+  const blob = xBook([{ name: 'สรุป', xml: xSheet(sum, { widths: [30, 18, 16, 16, 12], merges: ['A1:E1', 'A2:E2'] }) },
+    { name: 'รถชั่วคราว', xml: xSheet(tS, { widths: [7, 32, 14, 22, 26, 11, 14], merges: ['A1:G1'], freeze: [0, 2] }) },
+    { name: 'ช่องประจำ', xml: xSheet(pS, { widths: [7, 20, 7, 26, 12, 20, 14, 10, 11, 9], merges: ['A1:J1'], freeze: [0, 2] }) },
+    { name: 'รายการรายวัน', xml: xSheet(lS, { widths: [14, 13, 30, 14, 20, 22, 7, 26, 18], merges: ['A1:I1'], freeze: [0, 2] }) }]);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `สรุปที่จอด-${P_MODES[P.mode]}-${s}${s === e ? '' : '-ถึง-' + e}.xlsx`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
+  toast('ดาวน์โหลด Excel แล้ว');
 }
 
 /* ================= อัตราการมาจอดช่องประจำ (รายเดือน) =================
@@ -1123,7 +1271,9 @@ function renderRate() {
 }
 function rateBind() {
   document.addEventListener('change', e => {
-    const t = e.target, R = S.rate; if (!R || !t.id || !/^r(Zone|From|To|Th|Sort)$/.test(t.id)) return;
+    const t = e.target;
+    if (t.id === 'pZone') { perState().zone = t.value; setTimeout(renderPeriod, 0); return; }
+    const R = S.rate; if (!R || !t.id || !/^r(Zone|From|To|Th|Sort)$/.test(t.id)) return;
     const v = t.value;
     if (t.id === 'rZone') R.zone = v; if (t.id === 'rSort') R.sort = v; if (t.id === 'rTh') R.th = v === '' ? '' : String(Math.max(0, Math.min(100, +v || 0)));
     if (t.id === 'rFrom' && /^\d{4}-\d{2}$/.test(v)) R.from = v; if (t.id === 'rTo' && /^\d{4}-\d{2}$/.test(v)) R.to = v;
@@ -1424,10 +1574,11 @@ function renderSet() {
 }
 
 /* ================= การกระทำ ================= */
-const GUARD_DENY = new Set(['rate-xlsx', 'book-here', 'perm-here', 'new-temp', 'new-perm-or-temp', 'edit-perm', 'edit-temp', 'cancel-temp', 'del-temp', 'del-perm', 'toggle-perm', 'import', 'restore', 'restore-trash', 'purge', 'save-zone', 'del-zone', 'zone-up', 'apply-preset', 'seed-zones', 'relock', 'rm-member', 'backup', 'export-data', 'export-sum', 'hist']);
+const GUARD_DENY = new Set(['rate-xlsx', 'per-xlsx', 'perm-here', 'new-perm-or-temp', 'edit-perm', 'del-temp', 'del-perm', 'toggle-perm', 'import', 'restore', 'restore-trash', 'purge', 'save-zone', 'del-zone', 'zone-up', 'apply-preset', 'seed-zones', 'relock', 'rm-member', 'backup', 'export-data', 'export-sum', 'hist']);
 async function act(b) {
   const a = b.dataset.act, id = b.dataset.id;
   if (isGuard && GUARD_DENY.has(a)) return toast('บัญชีผู้ตรวจทำรายการนี้ไม่ได้');
+  if ((a === 'edit-temp' || a === 'cancel-temp') && !canEditTemp(db.temp.find(x => x.id === id))) return toast('แก้หรือยกเลิกได้เฉพาะรายการที่คุณเพิ่มเอง');
   const z = getZone(S.zone);
   switch (a) {
     case 'sel-slot': S.sel = { zone: S.zone, slot: b.dataset.slot }; renderMap(); return peekPanel();
@@ -1494,6 +1645,12 @@ async function act(b) {
     case 'export-data': return exportData();
     case 'export-sum': return exportSum();
     case 'rate-xlsx': return exportRateXlsx();
+    case 'stab': S.stab = b.dataset.s; return renderSum();
+    case 'per-mode': perState().mode = b.dataset.m; return renderPeriod();
+    case 'per-nav': { const P = perState(); P.a = perShift(P.mode, perRange(P.mode, P.a)[0], +b.dataset.n); return renderPeriod(); }
+    case 'per-now': perState().a = today(); return renderPeriod();
+    case 'per-view': perState().view = b.dataset.v; return renderPeriod();
+    case 'per-xlsx': return exportPeriodXlsx();
     case 'import': return $('importFile').click();
     case 'backup': return download(`ที่จอดรถ-สำรอง-${today()}.json`, JSON.stringify({ app: 'parking', at: Date.now(), zones: db.zones, permanent: db.permanent, temp: db.temp, trash: db.trash }, null, 2), 'application/json');
     case 'restore': return $('restoreFile').click();
@@ -1874,7 +2031,7 @@ function demoSeed() {   // ข้อมูลตัวอย่างสำห�
   // ตัวอย่างจองต่อเนื่องหลายเดือน (เคสพิเศษ)
   ops.push({ kind: 'temp', rec: stamp({ id: 'tm1', name: 'บจ. ผู้รับเหมาก่อสร้าง (งานโรงไฟฟ้า)', plate: '9กพ 4521', zone: 'z-power-plant', slot: '', date: addDays(today(), -14), dateTo: addDays(today(), 76), from: '07:30', to: '17:30', kind: 'Supplier', note: 'งานปรับปรุงโรงไฟฟ้า 3 เดือน', cancelled: false }, 'สร้างการจอง') });
   ops.push({ kind: 'temp', rec: stamp({ id: 'tm2', name: 'บจ. ที่ปรึกษาระบบ', plate: '2ขม 7788', zone: 'z-front-2-2', slot: '', date: today(), dateTo: addDays(today(), 29), from: '08:00', to: '17:00', kind: 'ผู้ติดต่อภายนอก', note: 'โครงการ 1 เดือน', cancelled: false }, 'สร้างการจอง') });
-  ops.forEach(o => docs.set(o.rec.id, toDoc(o.kind, o.rec))); demoSave();
+  ops.forEach(o => { if ('createdAcct' in o.rec) o.rec.createdAcct = 'somchai@' + USER_DOMAIN; docs.set(o.rec.id, toDoc(o.kind, o.rec)); }); demoSave();
 }
 
 /* ================= เริ่ม ================= */
