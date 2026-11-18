@@ -43,6 +43,14 @@ const hm2m = s => { const [h, m] = String(s || '0:0').split(':').map(Number); re
 const m2hm = m => { m = Math.max(0, Math.min(1439, Math.round(m))); return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
 const normSlot = s => String(s ?? '').trim().toLowerCase();
 const normPlate = p => String(p || '').replace(/[\s\-.]/g, '').toUpperCase();
+/* ทะเบียนหลายคัน: คั่นด้วย , หรือเว้นวรรค เช่น "ฎณ9050 2ขก5950 8ขง92" → "ฎณ9050, 2ขก5950, 8ขง92" */
+function fmtPlates(v) {
+  const t = String(v || '').trim().replace(/\s+/g, ' '); if (!t) return '';
+  let parts = /[,;\/\n]/.test(t) ? t.split(/[,;\/\n]+/) : (t.match(/\d?\s?[ก-ฮ]{1,3}\s?-?\s?\d{1,4}/g) || []);
+  parts = parts.map(x => x.trim()).filter(Boolean);
+  if (parts.length < 2 || normPlate(parts.join('')) !== normPlate(t.replace(/[,;\/\n]/g, ''))) return t;   // แยกไม่ครบ ใช้ตามที่พิมพ์
+  return parts.join(', ');
+}
 const overlap = (a1, a2, b1, b2) => a1 < b2 && b1 < a2;
 const safeUrl = u => /^https:\/\/(www\.)?(google\.[a-z.]+\/maps|maps\.google\.[a-z.]+|maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(String(u || '')) ? String(u) : '';
 const short = (s, n = 10) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
@@ -691,6 +699,8 @@ function openSheet(o = {}) {
   $('bEmp').value = r ? (r.empId || '') : ''; $('bDept').value = r ? (r.dept || '') : ''; $('bDiv').value = r ? (r.division || '') : '';
   sheetZone = r ? r.zone : (o.zone || (bType === 'temp' ? ((db.zones.find(z => z.free) || {}).id || S.zone) : S.zone)); sheetSlot = r ? (r.slot || '') : (o.slot != null ? o.slot : '');
   if (isGuard) bType = 'temp';
+  $('bByWrap').hidden = !isGuard; $('bBy').required = isGuard;
+  if (isGuard) { const c = curShift(), rec = recentInspectors(); $('bBy').value = inspectorFor(c.date, c.sh) || ''; $('bByList').innerHTML = rec.map(n => `<option value="${esc(n)}">`).join(''); }
   const pb = document.querySelector('#bType [data-type="perm"]'); if (pb) pb.hidden = isGuard;
   setSheetType(bType, true);
   $('bErr').hidden = true; $('sheet').hidden = false; document.body.style.overflow = 'hidden';
@@ -764,13 +774,14 @@ async function submitSheet(e) {
   try {
     if (bType === 'perm') {
       const old = id ? db.permanent.find(p => p.id === id) : null;
-      const rec = { ...(old || {}), id: id || uid(), name: $('bName').value.trim(), empId: $('bEmp').value.trim(), plate: $('bPlate').value.trim(), dept: $('bDept').value.trim(), division: $('bDiv').value.trim(), zone: $('bZone').value, slot: $('bSlot').value, active: old ? old.active : true };
+      const rec = { ...(old || {}), id: id || uid(), name: $('bName').value.trim(), empId: $('bEmp').value.trim(), plate: fmtPlates($('bPlate').value), dept: $('bDept').value.trim(), division: $('bDiv').value.trim(), zone: $('bZone').value, slot: $('bSlot').value, active: old ? old.active : true };
       if (old) touch(rec, 'แก้ไขข้อมูล'); else stamp(rec, 'ลงทะเบียนช่องประจำ');
       await savePerm(rec, old);
       done(rec, 'perm', old ? 'บันทึกการแก้ไขแล้ว' : 'ลงทะเบียนช่องประจำแล้ว');
     } else {
+      if (isGuard) { const c = curShift(), v = $('bBy').value.trim().replace(/\s+/g, ' '); if (!v) { show('กรุณาใส่ชื่อ รปภ. ผู้บันทึก'); $('bBy').focus(); return; } setInspector(v, c.date, c.sh); }
       const old = id ? db.temp.find(t => t.id === id) : null, z = getZone($('bZone').value);
-      const rec = { ...(old || {}), id: id || uid(), name: $('bName').value.trim(), plate: $('bPlate').value.trim(), zone: $('bZone').value, slot: z && z.free ? '' : $('bSlot').value,
+      const rec = { ...(old || {}), id: id || uid(), name: $('bName').value.trim(), plate: fmtPlates($('bPlate').value), zone: $('bZone').value, slot: z && z.free ? '' : $('bSlot').value,
         date: $('bDate').value, from: $('bFrom').value, to: $('bTo').value, kind: $('bKind').value, note: $('bNote').value.trim(), cancelled: old ? !!old.cancelled : false };
       const dto = sheetRange().dateTo; if (dto) rec.dateTo = dto; else delete rec.dateTo;
       if (z && isPermZone(z)) rec.kind = VIP_KIND;
@@ -866,22 +877,22 @@ function setInspector(name, d, sh) {
   } catch (e) {}
   S.inspector = { name, k: shiftKey(d, sh) };
 }
-async function askInspector(force) {
-  const k = shiftKey(S.cDate, S.cShift);
-  if (!force) { const cur = (S.inspector && S.inspector.k === k && S.inspector.name) || inspectorFor(S.cDate, S.cShift); if (cur) { S.inspector = { name: cur, k }; return cur; } }
+async function askInspector(force, d = d, sh = sh, opt = {}) {
+  const k = shiftKey(d, sh);
+  if (!force) { const cur = (S.inspector && S.inspector.k === k && S.inspector.name) || inspectorFor(d, sh); if (cur) { S.inspector = { name: cur, k }; return cur; } }
   const rec = recentInspectors(), pre = (S.inspector && S.inspector.name) || (!isGuard && by()) || '';
-  const pr = openDialog({ title: 'ชื่อผู้ตรวจ', body: `<p>${SHIFTS[S.cShift].name} (${SHIFTS[S.cShift].time}) วันที่ ${fmtDate(S.cDate)}</p>
+  const pr = openDialog({ title: opt.title || 'ชื่อผู้ตรวจ', body: `<p>${SHIFTS[sh].name} (${SHIFTS[sh].time}) วันที่ ${fmtDate(d)}</p>
     <form id="insForm" style="margin-top:10px"><label class="f"><span>ชื่อ-นามสกุล ผู้ตรวจ</span><input id="insName" maxlength="40" required autocomplete="off" list="insList" value="${esc(pre)}" placeholder="เช่น สมศักดิ์ ใจดี"></label>
     <datalist id="insList">${rec.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
     ${rec.length ? `<div class="ins-recent">${rec.map(n => `<button type="button" class="btn ghost sm" data-ins="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}</form>
     <p class="muted" style="margin-top:8px;font-size:.88em">ชื่อนี้จะอยู่ในผลตรวจทุกช่องของกะนี้ เปลี่ยนคนตรวจกลางกะได้ที่ปุ่ม "เปลี่ยนผู้ตรวจ"</p>`,
-    buttons: [{ label: 'ยกเลิก', value: false }, { label: 'เริ่มตรวจ', value: true, cls: 'pri' }] });
+    buttons: [{ label: 'ยกเลิก', value: false }, { label: opt.ok || 'เริ่มตรวจ', value: true, cls: 'pri' }] });
   const inp = $('insName'); if (inp) { inp.focus(); inp.select(); }
   const ok = await pr;
   const v =String(($('insName') || {}).value || '').trim().replace(/\s+/g, ' ');
   if (!ok) return '';
   if (!v) { toast('กรุณาใส่ชื่อผู้ตรวจ'); return ''; }
-  setInspector(v, S.cDate, S.cShift); return v;
+  setInspector(v, d, sh); return v;
 }
 const CK_TXT = { ok: 'มีรถ ทะเบียนตรง', wrong: 'ทะเบียนไม่ตรง', none: 'ไม่มีรถจอด' };
 const ckLabel = (r, owned) => !r ? 'ยังไม่ตรวจ' : owned ? CK_TXT[r] : r === 'none' ? 'ว่าง' : 'มีรถอื่นจอด';
@@ -1541,7 +1552,7 @@ function importRows(sheets) {
       const clash = perms.find(p => p !== ex && p.active && p.zone === z.id && normSlot(p.slot) === normSlot(slot));
       if (clash) { st.skipped.push(`${where}: ช่อง ${slot} เป็นของ ${clash.name}`); continue; }
       if (!z.slots.some(x => normSlot(x) === normSlot(slot))) { z.slots.push(slot); st.newSlots++; changedZ.add(z.id); }
-      const rec = { ...(ex || {}), id: ex ? ex.id : uid(), name, empId: emp, plate, dept: g('dept'), division: g('div'), zone: z.id, slot, active: ex ? ex.active : true };
+      const rec = { ...(ex || {}), id: ex ? ex.id : uid(), name, empId: emp, plate: fmtPlates(plate), dept: g('dept'), division: g('div'), zone: z.id, slot, active: ex ? ex.active : true };
       if (ex) { touch(rec, 'อัปเดตจากไฟล์นำเข้า'); perms[perms.indexOf(ex)] = rec; st.updated++; } else { stamp(rec, 'นำเข้าจากไฟล์'); perms.push(rec); st.added++; }
       st.ops.push({ kind: 'perm', rec }); cnt++;
     }

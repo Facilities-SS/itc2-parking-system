@@ -206,7 +206,7 @@
     <div class="picked" id="bPicked"></div>
     <div class="grid2">
       <label class="f span2"><span id="bNameLbl">ชื่อ-นามสกุล / บริษัท</span><input id="bName" maxlength="80" required autocomplete="off"></label>
-      <label class="f"><span>ทะเบียนรถ</span><input id="bPlate" maxlength="20" required autocomplete="off" placeholder="เช่น 1กข 1234"></label>
+      <label class="f"><span>ทะเบียนรถ</span><input id="bPlate" maxlength="90" required autocomplete="off" placeholder="เช่น 1กข 1234 · หลายคันคั่นด้วย ,"></label>
       <label class="f"><span>สถานที่</span><select id="bZone" required></select></label>
       <label class="f g-temp"><span>ประเภทผู้จอด</span><select id="bKind"></select></label>
       <label class="f g-temp"><span>วันที่เริ่ม</span><input id="bDate" type="date" required></label>
@@ -232,6 +232,7 @@
       <label class="f g-perm"><span>แผนก</span><input id="bDept" maxlength="60"></label>
       <label class="f g-perm"><span>ฝ่าย</span><input id="bDiv" maxlength="60"></label>
       <label class="f" id="bSlotWrap"><span>หมายเลขช่อง</span><select id="bSlot"></select></label>
+      <label class="f span2" id="bByWrap" hidden><span>ชื่อ รปภ. ผู้บันทึก <small class="muted">(จำเป็น)</small></span><input id="bBy" maxlength="40" autocomplete="off" list="bByList" placeholder="ชื่อ-นามสกุล ผู้บันทึก"><datalist id="bByList"></datalist></label>
       <label class="f span2 g-temp"><span>ผู้ติดต่อในแผนก / หมายเหตุ</span><input id="bNote" maxlength="120" placeholder="เช่น มาพบคุณสมชาย ฝ่ายวิศวกรรม"></label>
     </div>
     <p class="hint" id="bHint"></p>
