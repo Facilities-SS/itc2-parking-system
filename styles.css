@@ -718,3 +718,6 @@ svg.car.perm{color:#2C83D0} svg.car.temp{color:#F7941D} .slot.t-vip svg.car.temp
 .dpw .dpv{position:absolute;left:12px;right:34px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .f .dpw,.rate-ctl .dpw{display:flex;width:100%}
 .f .dpw>input,.rate-ctl .dpw>input{width:100%}
+.sp .pk.soil{fill:url(#spSoil);stroke:#A0855A;stroke-width:1.6;stroke-dasharray:6 4}
+.sp .pk.soil.on{fill:url(#spSoil);stroke:#EF5B24;stroke-width:2.8;stroke-dasharray:none}
+.sp .lb.soil-t{fill:#6E5733;stroke:#E8DCC4;letter-spacing:.5px}

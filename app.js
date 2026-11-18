@@ -480,9 +480,10 @@ const SITE_LOTS = {   // pts = ขอบลานจอด, a = จุดกล�
   pilot: { pts: '14,300 146,300 146,492 104,492', a: [96, 380], p: [40, 252], side: 'r' },
   waste: { pts: '664,-138 688,-138 688,14 664,14', a: [676, -62], p: [676, -128], side: 'l' },
   front: { pts: '490,612 660,612 660,668 490,668', a: [575, 640], p: [736, 582], side: 'r' },
-  power: { pts: '424,716 560,716 560,848 424,848', a: [492, 782], p: [612, 782], side: 'r' }
+  power: { pts: '424,716 560,716 560,848 424,848', a: [492, 782], p: [612, 782], side: 'r' },
+  dirt: { pts: '1118,712 1268,712 1268,808 1118,808', a: [1193, 786], p: [1250, 846], side: 'l', soil: true }   // ลานดินสามแยก มุมขวาล่าง นอกกำแพง
 };
-const siteKey = z => { const k = presetKey(z), n = String(z.name); return k === 'pilot' ? 'pilot' : k === 'waste' ? 'waste' : /2\.2/.test(n) ? 'front' : /ไฟฟ้า/.test(n) ? 'power' : ''; };
+const siteKey = z => { const k = presetKey(z), n = String(z.name); return k === 'pilot' ? 'pilot' : k === 'waste' ? 'waste' : /2\.2/.test(n) ? 'front' : /ไฟฟ้า/.test(n) ? 'power' : /สามแยก|ลานดิน/.test(n) ? 'dirt' : ''; };
 function renderSite() {
   const det = $('site'); if (!det) return;
   if (det.dataset.init !== '1') { det.dataset.init = '1'; if (window.innerWidth > 760) det.open = true; }
@@ -494,7 +495,7 @@ function renderSite() {
   const GATE = (x1, y1, x2, y2) => `<line class="g-ln" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/><rect class="g-post" x="${x1 - 5}" y="${y1 - 5}" width="10" height="10"/><rect class="g-post" x="${x2 - 5}" y="${y2 - 5}" width="10" height="10"/>`;
   const PILL = (x, y, t, w) => `<g class="sp-pill"><rect x="${x - w / 2}" y="${y - 13}" width="${w}" height="26" rx="13"/><text x="${x}" y="${y + 1}">${t}</text></g>`;
   const cur = getZone(S.zone), curKey = cur ? siteKey(cur) : '';
-  const lots = Object.entries(SITE_LOTS).map(([k, Lt]) => `<polygon class="pk ${k === curKey ? 'on' : ''}" points="${Lt.pts}"/>`).join('');
+  const lots = Object.entries(SITE_LOTS).map(([k, Lt]) => `<polygon class="pk${Lt.soil ? ' soil' : ''} ${k === curKey ? 'on' : ''}" points="${Lt.pts}"/>`).join('');
   const world = `
     <defs>
       <pattern id="spHatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="#B4532F" stroke-width="2.2"/></pattern>
@@ -502,16 +503,17 @@ function renderSite() {
       <pattern id="spStall" width="11" height="11" patternUnits="userSpaceOnUse"><rect width="11" height="11" fill="#2B7BC4" fill-opacity=".16"/><line x1="0" y1="0" x2="0" y2="11" stroke="#fff" stroke-opacity=".85" stroke-width="1.2"/></pattern>
       <pattern id="spStallOn" width="11" height="11" patternUnits="userSpaceOnUse"><rect width="11" height="11" fill="#F7941D" fill-opacity=".34"/><line x1="0" y1="0" x2="0" y2="11" stroke="#fff" stroke-opacity=".9" stroke-width="1.2"/></pattern>
       <pattern id="spRoof" width="18" height="18" patternUnits="userSpaceOnUse"><rect width="18" height="18" fill="#fff"/><path d="M0 9 H18 M9 0 V18" stroke="#E6EBEF" stroke-width="1"/></pattern>
+      <pattern id="spSoil" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="#E8DCC4"/><circle cx="4" cy="5" r="1.3" fill="#B9A27C"/><circle cx="12" cy="11" r="1.1" fill="#B9A27C"/><circle cx="10" cy="3" r=".8" fill="#C9B590"/><circle cx="3" cy="13" r=".9" fill="#C9B590"/></pattern>
       <linearGradient id="spBadge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#34BDB1"/><stop offset="1" stop-color="#2B7BC4"/></linearGradient>
       <linearGradient id="spBadgeOn" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FBB040"/><stop offset="1" stop-color="#EF5B24"/></linearGradient>
       <filter id="spSh" x="-10%" y="-10%" width="130%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#1B2A36" flood-opacity=".14"/></filter>
       <filter id="spSh2" x="-20%" y="-30%" width="150%" height="180%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#1B2A36" flood-opacity=".22"/></filter>
     </defs>
-    <rect class="land" x="-10" y="-170" width="1160" height="1050"/>
-    <rect class="outside" x="-10" y="702" width="1160" height="178"/><rect x="-10" y="702" width="1160" height="178" fill="url(#spOut)"/>
+    <rect class="land" x="-10" y="-170" width="1310" height="1050"/>
+    <rect class="outside" x="-10" y="702" width="1310" height="178"/><rect x="-10" y="702" width="1310" height="178" fill="url(#spOut)"/>
     <path class="water-b" d="M-10 400 C 30 500, 75 600, 122 710 S 150 820, 160 880"/><path class="water" d="M-10 400 C 30 500, 75 600, 122 710 S 150 820, 160 880"/>
-    ${RD(-10, 22, 1160, 26)}${RD(-10, 678, 1160, 24)}${RD(126, 48, 20, 244)}${RD(450, 48, 36, 544)}${RD(664, 48, 28, 580)}${RD(1086, 48, 20, 630)}${RD(146, 262, 144, 22)}${RD(246, 284, 42, 394)}
-    ${CL(-10, 35, 1150, 35)}${CL(-10, 690, 1150, 690)}${CL(468, 52, 468, 588)}${CL(678, 52, 678, 624)}${CL(267, 290, 267, 672)}
+    ${RD(-10, 22, 1310, 26)}${RD(-10, 678, 1310, 24)}${RD(126, 48, 20, 244)}${RD(450, 48, 36, 544)}${RD(664, 48, 28, 580)}${RD(1086, 48, 20, 630)}${RD(146, 262, 144, 22)}${RD(246, 284, 42, 394)}
+    ${CL(-10, 35, 1300, 35)}${CL(-10, 690, 1300, 690)}${CL(1096, 52, 1096, 676)}${CL(468, 52, 468, 588)}${CL(678, 52, 678, 624)}${CL(267, 290, 267, 672)}
     <g filter="url(#spSh)">
       ${B(160, -150, 262, 160)}${B(500, -150, 158, 162)}<rect class="b pond" x="696" y="-160" width="184" height="172" rx="2"/><rect class="b bins" x="888" y="-160" width="86" height="150" rx="2"/>
       ${B(-4, 60, 124, 230)}<path class="b roof" d="M150 60 H445 V588 H292 V255 H150 Z"/>${B(148, 300, 94, 172, 'pp')}
@@ -527,21 +529,21 @@ function renderSite() {
     ${GATE(232, 593, 288, 593)}${GATE(1000, -3, 1000, 58)}<rect class="b post" x="988" y="18" width="24" height="34" rx="3"/>
     ${L(291, -66, 'บอยเลอร์', 'lg')}${L(579, -66, 'อาคาร FISH OIL')}${L(788, 0, 'บ่อบำบัดน้ำเสีย TUM3', 'sm')}${L(931, -112, 'พื้นที่', 'xs')}${L(931, -96, 'เก็บถังปลา', 'xs')}
     ${L(58, 180, 'หอพัก', 'lg')}${L(296, 160, 'อาคารผลิต 2.1', 'xl')}${L(575, 330, 'อาคารผลิต 2.2', 'xl')}
-    ${L(195, 378, 'อาคาร', 'sm')}${L(195, 396, 'PILOT PLANT', 'sm')}${L(888, 330, 'พื้นที่ 40 ไร่', 'xl area-t')}${L(888, 358, 'พื้นที่โล่ง', 'sm area-t')}
-    ${L(412, 630, 'ห้องธุรการ', 'xs')}${L(467, 631, 'ห้องช่าง', 'xs', ' transform="rotate(-90 467 631)"')}${L(810, 664, 'สโตร์', 'xs')}
+    ${L(195, 378, 'อาคาร', 'sm')}${L(195, 396, 'PILOT PLANT', 'sm')}${L(888, 340, 'พื้นที่ 40 ไร่', 'xl area-t')}
+    ${L(412, 630, 'ห้องธุรการ', 'xs')}${L(467, 631, 'ห้องช่าง', 'xs', ' transform="rotate(-90 467 631)"')}${L(810, 664, 'สโตร์', 'xs')}${PILL(1096, 690, 'สามแยก', 64)}${L(1193, 742, 'ลานดิน', 'sm soil-t')}
     ${L(299, 785, 'โกดัง', 'lg')}${L(590, 730, 'นอกรั้วโรงงาน', 'sm out-t', ' style="text-anchor:start"')}
     ${L(40, 560, 'คลอง', 'sm water-t', ' transform="rotate(62 40 560)"')}
     ${PILL(267, 568, 'ประตู', 58)}${PILL(1041, -24, 'ประตูหลัง', 86)}${L(313, 643, 'ป้อม', 'xs')}${L(313, 656, 'รปภ.', 'xs')}${L(1048, 35, 'ป้อม รปภ.', 'xs')}
     <path class="flow" d="M678 96 V58 M668 70 L678 58 L688 70"/>${L(704, 82, 'ทางเข้า-ออก', 'flow-t')}
-    <g class="north" transform="translate(1108,-128)"><circle r="20"/><path d="M0 -13 L7 7 L0 3 L-7 7 Z"/><text y="-26">N</text></g>
-    <g class="sp-legend" transform="translate(872,716)">
-      <rect class="lg-bg" x="0" y="0" width="268" height="132" rx="10"/>
-      <g transform="translate(16,30)"><path class="w-out" d="M0 0 H30"/><path class="w-in" d="M0 0 H30"/><path class="w-ht" d="M0 0 H30"/><text x="42" y="5">กำแพง</text></g>
-      <g transform="translate(140,30)"><line class="g-ln" x1="0" y1="0" x2="30" y2="0"/><rect class="g-post" x="-5" y="-5" width="10" height="10"/><rect class="g-post" x="25" y="-5" width="10" height="10"/><text x="42" y="5">ประตูรถ</text></g>
-      <g transform="translate(16,66)"><rect class="pk" x="0" y="-11" width="30" height="22"/><text x="42" y="5">ลานจอดรถ</text></g>
-      <g transform="translate(140,66)"><rect class="b" x="0" y="-11" width="30" height="22" rx="2"/><text x="42" y="5">อาคาร</text></g>
-      <g transform="translate(16,102)"><rect class="area" x="0" y="-11" width="30" height="22" rx="2"/><text x="42" y="5">พื้นที่โล่ง</text></g>
-      <g transform="translate(140,102)"><rect class="rd" x="0" y="-11" width="30" height="22"/><line class="cl" x1="2" y1="0" x2="28" y2="0"/><text x="42" y="5">ถนน</text></g>
+    <g class="north" transform="translate(1256,-128)"><circle r="20"/><path d="M0 -13 L7 7 L0 3 L-7 7 Z"/><text y="-26">N</text></g>
+    <g class="sp-legend" transform="translate(1120,96)">
+      <rect class="lg-bg" x="0" y="0" width="166" height="232" rx="10"/>
+      <g transform="translate(16,28)"><path class="w-out" d="M0 0 H30"/><path class="w-in" d="M0 0 H30"/><path class="w-ht" d="M0 0 H30"/><text x="42" y="5">กำแพง</text></g>
+      <g transform="translate(16,64)"><line class="g-ln" x1="0" y1="0" x2="30" y2="0"/><rect class="g-post" x="-5" y="-5" width="10" height="10"/><rect class="g-post" x="25" y="-5" width="10" height="10"/><text x="42" y="5">ประตูรถ</text></g>
+      <g transform="translate(16,100)"><rect class="pk" x="0" y="-11" width="30" height="22"/><text x="42" y="5">ลานจอดรถ</text></g>
+      <g transform="translate(16,136)"><rect class="pk soil" x="0" y="-11" width="30" height="22"/><text x="42" y="5">ลานดิน</text></g>
+      <g transform="translate(16,172)"><rect class="b" x="0" y="-11" width="30" height="22" rx="2"/><text x="42" y="5">อาคาร</text></g>
+      <g transform="translate(16,208)"><rect class="rd" x="0" y="-11" width="30" height="22"/><line class="cl" x1="2" y1="0" x2="28" y2="0"/><text x="42" y="5">ถนน</text></g>
     </g>`;
   const marks = db.zones.map((z, i) => {
     const Lt = SITE_LOTS[siteKey(z)] || { p: [1100, -120 + i * 60], side: 'l' }, [x, y] = Lt.p, o = occupancy(z, S.vDate, S.vFrom, S.vTo), f = Math.max(0, o.cap - o.used), on = z.id === S.zone;
@@ -552,8 +554,8 @@ function renderSite() {
       <rect class="mk-badge" x="-19" y="-19" width="38" height="38" rx="9"/><text class="mk-p" y="1">P</text>
       <text class="mk-t" x="${lx + 4}" y="-3">${esc(z.name)}</text><text class="mk-s" x="${lx + 4}" y="15"><tspan class="${f ? 'ok' : 'full'}">ว่าง ${f}</tspan> / ${o.cap} ${z.free ? 'คัน' : 'ช่อง'}</text></g>`;
   }).join('');
-  $('siteMap').innerHTML = `<svg class="sp" viewBox="-10 -170 1160 1050" role="img" aria-label="ผังโรงงานและตำแหน่งลานจอด">${world}${marks}
-    <text class="note" x="1140" y="868" text-anchor="end">ตำแหน่งโดยประมาณ ไม่ตามมาตราส่วน</text></svg>`;
+  $('siteMap').innerHTML = `<svg class="sp" viewBox="-10 -170 1310 1050" role="img" aria-label="ผังโรงงานและตำแหน่งลานจอด">${world}${marks}
+    <text class="note" x="1203" y="352" text-anchor="middle">ตำแหน่งโดยประมาณ</text><text class="note" x="1203" y="368" text-anchor="middle">ไม่ตามมาตราส่วน</text></svg>`;
 }
 function lotHtml(z, o) {
   if (validLayout(z)) {
