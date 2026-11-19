@@ -419,7 +419,7 @@ function renderMap() {
     $('zoneStat').innerHTML = ''; $('panel').innerHTML = ''; $('loose').hidden = true; return;
   }
   const o = occupancy(z, S.vDate, S.vFrom, S.vTo), free = o.cap - o.used;
-  $('zoneStat').innerHTML = `<span><b>${o.cap}</b>${z.free ? 'คัน' : 'ช่อง'}</span>${z.free ? '' : `<span><b style="color:var(--sign)">${o.perm}</b>ระยะยาว</span>`}<span><b style="color:var(--mark-ink)">${o.tmp}</b>ชั่วคราว</span><span><b style="color:${free < 0 ? 'var(--stop)' : 'var(--go)'}">${free < 0 ? 'เกิน ' + -free : free}</b>ว่าง</span>${z.free ? '<span class="muted">จอดอิสระ ไม่มีเลขช่อง</span>' : ''}${z.note ? `<span class="muted">${esc(z.note)}</span>` : ''}<a class="maplink" href="${esc(safeUrl(z.mapUrl) || COMPANY_MAP)}" target="_blank" rel="noopener noreferrer">เปิดใน Google Maps</a>`;
+  $('zoneStat').innerHTML = `<span><b>${o.cap}</b>${z.free ? 'คัน' : 'ช่อง'}</span>${z.free ? '' : `<span><b style="color:var(--sign)">${o.perm}</b>ระยะยาว</span>`}<span><b style="color:var(--mark-ink)">${o.tmp}</b>ชั่วคราว</span><span><b style="color:${free < 0 ? 'var(--stop)' : 'var(--go)'}">${free < 0 ? 'เกิน ' + -free : free}</b>ว่าง</span>${z.free ? '<span class="muted">จอดอิสระ ไม่มีเลขช่อง</span>' : ''}${z.note ? `<span class="muted">${esc(z.note)}</span>` : ''}`;
   $('viewToggle').textContent = S.view3d ? 'มุมมอง 3 มิติ' : 'มุมมองแผนผัง'; $('viewToggle').setAttribute('aria-pressed', S.view3d);
   const sx = $('stage').scrollLeft;
   $('stage').className = 'stage ' + (S.view3d ? 'v3d' : 'v2d');
@@ -587,8 +587,8 @@ function slotHtml(z, c, pos) {
   const cls = ['slot', pos ? pos.cls : '', tg ? 't-' + tg : '', c.open ? 'open' : '', c.perm ? 'perm' : c.temp ? 'temp' : 'free', c.later && c.later.length && !c.perm && !c.temp ? 'later' : '', sel ? 'sel' : '', hl ? 'hl' : ''].filter(Boolean).join(' ');
   const pop = (c.temp && c.temp.id === S.pop) || (c.perm && c.perm.id === S.pop) ? ' pop' : '';
   let inner = `<span class="num">${esc(c.slot || '')}</span>${tg ? `<span class="stag">${tg === 'vip' ? 'VIP' : 'ผบ.'}</span>` : ''}`, label;
-  if (c.perm) { inner += `<svg class="car perm${pop}" viewBox="0 0 40 72" aria-hidden="true"><use href="#car"/></svg><span class="tag">${esc(short(firstName(c.perm.name), 10))}<small>${esc(c.perm.plate)}</small></span>`; label = `ช่อง ${c.slot} ระยะยาว ${c.perm.name} ทะเบียน ${c.perm.plate}`; }
-  else if (c.temp) { inner += `<svg class="car temp${pop}" viewBox="0 0 40 72" aria-hidden="true"><use href="#car"/></svg><span class="tag temp">${esc(short(firstName(c.temp.name), 10))}<small>${esc(c.temp.from)}–${esc(c.temp.to)}</small></span>`; label = `${c.slot ? 'ช่อง ' + c.slot : 'จอดอิสระ'} ชั่วคราว ${c.temp.name} ${c.temp.from}-${c.temp.to}`; }
+  if (c.perm) { inner += `<svg class="car perm${pop}" viewBox="0 0 40 72" aria-hidden="true"><use href="#car"/></svg><span class="tag">${c.slot ? `<i class="tn">${esc(c.slot)}</i>` : ''}<span class="tnm">${esc(short(firstName(c.perm.name), 12))}</span><small>${esc(c.perm.plate)}</small></span>`; label = `ช่อง ${c.slot} ระยะยาว ${c.perm.name} ทะเบียน ${c.perm.plate}`; }
+  else if (c.temp) { inner += `<svg class="car temp${pop}" viewBox="0 0 40 72" aria-hidden="true"><use href="#car"/></svg><span class="tag temp">${c.slot ? `<i class="tn">${esc(c.slot)}</i>` : ''}<span class="tnm">${esc(short(firstName(c.temp.name), 12))}</span><small>${esc(c.temp.from)}–${esc(c.temp.to)}</small></span>`; label = `${c.slot ? 'ช่อง ' + c.slot : 'จอดอิสระ'} ชั่วคราว ${c.temp.name} ${c.temp.from}-${c.temp.to}`; }
   else { if (sel) inner += '<i class="ghost"></i>'; label = `${c.slot ? 'ช่อง ' + c.slot : 'ที่ว่าง'} ว่าง${c.later && c.later.length ? ' มีจองช่วงเวลาอื่น' : ''}`; }
   const data = c.perm ? `data-act="sel-perm" data-id="${esc(c.perm.id)}"` : c.temp ? `data-act="sel-temp" data-id="${esc(c.temp.id)}"` : z.free ? `data-act="sel-open" data-idx="${c.idx}"` : `data-act="sel-slot" data-slot="${esc(c.slot)}"`;
   if (tg) label += ' ' + TAG_TXT[tg];
@@ -879,7 +879,7 @@ function setInspector(name, d, sh) {
   } catch (e) {}
   S.inspector = { name, k: shiftKey(d, sh) };
 }
-async function askInspector(force, d = d, sh = sh, opt = {}) {
+async function askInspector(force, d = S.cDate, sh = S.cShift, opt = {}) {
   const k = shiftKey(d, sh);
   if (!force) { const cur = (S.inspector && S.inspector.k === k && S.inspector.name) || inspectorFor(d, sh); if (cur) { S.inspector = { name: cur, k }; return cur; } }
   const rec = recentInspectors(), pre = (S.inspector && S.inspector.name) || (!isGuard && by()) || '';
