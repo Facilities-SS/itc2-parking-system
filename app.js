@@ -54,6 +54,8 @@ function fmtPlates(v) {
 const overlap = (a1, a2, b1, b2) => a1 < b2 && b1 < a2;
 const safeUrl = u => /^https:\/\/(www\.)?(google\.[a-z.]+\/maps|maps\.google\.[a-z.]+|maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(String(u || '')) ? String(u) : '';
 const short = (s, n = 10) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+/* ชื่อพนักงานช่องประจำ: ขึ้นต้นด้วย คุณ ให้สุภาพ (ถ้ามีคำนำหน้าอย่าง ดร. อยู่แล้วใช้ตามเดิม) */
+const khun = n => !n || /^(คุณ|ดร\.|ผศ\.|รศ\.|ศ\.|Dr\.?|Mr\.?|Ms\.?|Mrs\.?)/i.test(n) ? n : (/^[A-Za-z]/.test(n) ? 'K.' + n : 'คุณ' + n);
 const firstName = s => String(s || '').replace(/^(นาย|นางสาว|นาง|น\.ส\.|คุณ|mr\.?|mrs\.?|ms\.?|บจ\.|บมจ\.|หจก\.|บริษัท|ห้างหุ้นส่วนจำกัด)\s*/i, '').split(/\s+/)[0];
 class UserErr extends Error {}
 
@@ -481,9 +483,9 @@ const SITE_LOTS = {   // pts = ขอบลานจอด, a = จุดกล�
   waste: { pts: '664,-138 688,-138 688,14 664,14', a: [676, -62], p: [676, -128], side: 'l' },
   front: { pts: '490,612 660,612 660,668 490,668', a: [575, 640], p: [736, 582], side: 'r' },
   power: { pts: '424,716 560,716 560,848 424,848', a: [492, 782], p: [612, 782], side: 'r' },
-  dirt: { pts: '1118,712 1268,712 1268,808 1118,808', a: [1193, 786], p: [1250, 846], side: 'l', soil: true }   // ลานดินสามแยก มุมขวาล่าง นอกกำแพง
+  loft: { pts: '996,-160 1078,-160 1078,-40 996,-40', a: [1037, -100], p: [1037, -112], side: 'r' }   // ลาน Loft เหนือประตูหลัง นอกกำแพง ซ้ายของถนนตัดใหม่
 };
-const siteKey = z => { const k = presetKey(z), n = String(z.name); return k === 'pilot' ? 'pilot' : k === 'waste' ? 'waste' : /2\.2/.test(n) ? 'front' : /ไฟฟ้า/.test(n) ? 'power' : /สามแยก|ลานดิน/.test(n) ? 'dirt' : ''; };
+const siteKey = z => { const k = presetKey(z), n = String(z.name); return k === 'pilot' ? 'pilot' : k === 'waste' ? 'waste' : /2\.2/.test(n) ? 'front' : /ไฟฟ้า/.test(n) ? 'power' : /loft/i.test(n) ? 'loft' : ''; };
 function renderSite() {
   const det = $('site'); if (!det) return;
   if (det.dataset.init !== '1') { det.dataset.init = '1'; if (window.innerWidth > 760) det.open = true; }
@@ -512,10 +514,10 @@ function renderSite() {
     <rect class="land" x="-10" y="-170" width="1310" height="1050"/>
     <rect class="outside" x="-10" y="702" width="1310" height="178"/><rect x="-10" y="702" width="1310" height="178" fill="url(#spOut)"/>
     <path class="water-b" d="M-10 400 C 30 500, 75 600, 122 710 S 150 820, 160 880"/><path class="water" d="M-10 400 C 30 500, 75 600, 122 710 S 150 820, 160 880"/>
-    ${RD(-10, 22, 1310, 26)}${RD(-10, 678, 1310, 24)}${RD(126, 48, 20, 244)}${RD(450, 48, 36, 544)}${RD(664, 48, 28, 580)}${RD(1086, 48, 20, 630)}${RD(146, 262, 144, 22)}${RD(246, 284, 42, 394)}
-    ${CL(-10, 35, 1300, 35)}${CL(-10, 690, 1300, 690)}${CL(1096, 52, 1096, 676)}${CL(468, 52, 468, 588)}${CL(678, 52, 678, 624)}${CL(267, 290, 267, 672)}
+    ${RD(-10, 22, 1116, 26)}${RD(-10, 678, 1310, 24)}${RD(1086, -170, 20, 192)}${RD(126, 48, 20, 244)}${RD(450, 48, 36, 544)}${RD(664, 48, 28, 580)}${RD(1086, 48, 20, 630)}${RD(146, 262, 144, 22)}${RD(246, 284, 42, 394)}
+    ${CL(-10, 35, 1104, 35)}${CL(-10, 690, 1300, 690)}${CL(1096, -168, 1096, 676)}${CL(468, 52, 468, 588)}${CL(678, 52, 678, 624)}${CL(267, 290, 267, 672)}
     <g filter="url(#spSh)">
-      ${B(160, -150, 262, 160)}${B(500, -150, 158, 162)}<rect class="b pond" x="696" y="-160" width="184" height="172" rx="2"/><rect class="b bins" x="888" y="-160" width="86" height="150" rx="2"/>
+      ${B(-4, -112, 64, 110)}${B(160, -150, 262, 160)}${B(500, -150, 158, 162)}<rect class="b pond" x="696" y="-160" width="184" height="172" rx="2"/><rect class="b bins" x="888" y="-160" width="86" height="150" rx="2"/>
       ${B(-4, 60, 124, 230)}<path class="b roof" d="M150 60 H445 V588 H292 V255 H150 Z"/>${B(148, 300, 94, 172, 'pp')}
       <rect class="b roof" x="490" y="60" width="170" height="548" rx="2"/>
       ${B(381, 601, 62, 59)}${B(294, 630, 38, 38, 'post')}${B(448, 594, 38, 74, 'acc')}${B(706, 654, 207, 18)}
@@ -530,20 +532,19 @@ function renderSite() {
     ${L(291, -66, 'บอยเลอร์', 'lg')}${L(579, -66, 'อาคาร FISH OIL')}${L(788, 0, 'บ่อบำบัดน้ำเสีย TUM3', 'sm')}${L(931, -112, 'พื้นที่', 'xs')}${L(931, -96, 'เก็บถังปลา', 'xs')}
     ${L(58, 180, 'หอพัก', 'lg')}${L(296, 160, 'อาคารผลิต 2.1', 'xl')}${L(575, 330, 'อาคารผลิต 2.2', 'xl')}
     ${L(195, 378, 'อาคาร', 'sm')}${L(195, 396, 'PILOT PLANT', 'sm')}${L(888, 340, 'พื้นที่ 40 ไร่', 'xl area-t')}
-    ${L(412, 630, 'ห้องธุรการ', 'xs')}${L(467, 631, 'ห้องช่าง', 'xs', ' transform="rotate(-90 467 631)"')}${L(810, 664, 'สโตร์', 'xs')}${PILL(1096, 690, 'สามแยก', 64)}${L(1193, 742, 'ลานดิน', 'sm soil-t')}
+    ${L(412, 630, 'ห้องธุรการ', 'xs')}${L(467, 631, 'ห้องช่าง', 'xs', ' transform="rotate(-90 467 631)"')}${L(810, 664, 'สโตร์', 'xs')}${L(27, -52, 'ห้องขยะ', 'sm')}
     ${L(299, 785, 'โกดัง', 'lg')}${L(590, 730, 'นอกรั้วโรงงาน', 'sm out-t', ' style="text-anchor:start"')}
     ${L(40, 560, 'คลอง', 'sm water-t', ' transform="rotate(62 40 560)"')}
     ${PILL(267, 568, 'ประตู', 58)}${PILL(1041, -24, 'ประตูหลัง', 86)}${L(313, 643, 'ป้อม', 'xs')}${L(313, 656, 'รปภ.', 'xs')}${L(1048, 35, 'ป้อม รปภ.', 'xs')}
     <path class="flow" d="M678 96 V58 M668 70 L678 58 L688 70"/>${L(704, 82, 'ทางเข้า-ออก', 'flow-t')}
     <g class="north" transform="translate(1256,-128)"><circle r="20"/><path d="M0 -13 L7 7 L0 3 L-7 7 Z"/><text y="-26">N</text></g>
     <g class="sp-legend" transform="translate(1120,96)">
-      <rect class="lg-bg" x="0" y="0" width="166" height="232" rx="10"/>
+      <rect class="lg-bg" x="0" y="0" width="166" height="196" rx="10"/>
       <g transform="translate(16,28)"><path class="w-out" d="M0 0 H30"/><path class="w-in" d="M0 0 H30"/><path class="w-ht" d="M0 0 H30"/><text x="42" y="5">กำแพง</text></g>
       <g transform="translate(16,64)"><line class="g-ln" x1="0" y1="0" x2="30" y2="0"/><rect class="g-post" x="-5" y="-5" width="10" height="10"/><rect class="g-post" x="25" y="-5" width="10" height="10"/><text x="42" y="5">ประตูรถ</text></g>
       <g transform="translate(16,100)"><rect class="pk" x="0" y="-11" width="30" height="22"/><text x="42" y="5">ลานจอดรถ</text></g>
-      <g transform="translate(16,136)"><rect class="pk soil" x="0" y="-11" width="30" height="22"/><text x="42" y="5">ลานดิน</text></g>
-      <g transform="translate(16,172)"><rect class="b" x="0" y="-11" width="30" height="22" rx="2"/><text x="42" y="5">อาคาร</text></g>
-      <g transform="translate(16,208)"><rect class="rd" x="0" y="-11" width="30" height="22"/><line class="cl" x1="2" y1="0" x2="28" y2="0"/><text x="42" y="5">ถนน</text></g>
+      <g transform="translate(16,136)"><rect class="b" x="0" y="-11" width="30" height="22" rx="2"/><text x="42" y="5">อาคาร</text></g>
+      <g transform="translate(16,172)"><rect class="rd" x="0" y="-11" width="30" height="22"/><line class="cl" x1="2" y1="0" x2="28" y2="0"/><text x="42" y="5">ถนน</text></g>
     </g>`;
   const marks = db.zones.map((z, i) => {
     const Lt = SITE_LOTS[siteKey(z)] || { p: [1100, -120 + i * 60], side: 'l' }, [x, y] = Lt.p, o = occupancy(z, S.vDate, S.vFrom, S.vTo), f = Math.max(0, o.cap - o.used), on = z.id === S.zone;
@@ -555,9 +556,40 @@ function renderSite() {
       <text class="mk-t" x="${lx + 4}" y="-3">${esc(z.name)}</text><text class="mk-s" x="${lx + 4}" y="15"><tspan class="${f ? 'ok' : 'full'}">ว่าง ${f}</tspan> / ${o.cap} ${z.free ? 'คัน' : 'ช่อง'}</text></g>`;
   }).join('');
   $('siteMap').innerHTML = `<svg class="sp" viewBox="-10 -170 1310 1050" role="img" aria-label="ผังโรงงานและตำแหน่งลานจอด">${world}${marks}
-    <text class="note" x="1203" y="352" text-anchor="middle">ตำแหน่งโดยประมาณ</text><text class="note" x="1203" y="368" text-anchor="middle">ไม่ตามมาตราส่วน</text></svg>`;
+    <text class="note" x="1203" y="316" text-anchor="middle">ตำแหน่งโดยประมาณ</text><text class="note" x="1203" y="332" text-anchor="middle">ไม่ตามมาตราส่วน</text></svg>`;
+}
+/* ลานจอดอิสระที่มีผังจริง (ไม่มีเลขช่อง) เช่น ลาน Loft: วางรถชั่วคราวลงช่องตามลำดับ */
+const FREE_PRESETS = {
+  loft: () => {
+    const row = (x, y, n, f) => ({ x, y, n, o: 'v', f }), blocks = [
+      row(1.6, .4, 12, 'd'), row(15.4, .4, 12, 'd'),                       // แถวบนติดขอบลาน หันออกทางวิ่ง
+      row(1.0, 3.9, 12, 'u'), row(1.0, 5.62, 12, 'd'), row(15.4, 3.9, 10, 'u'), row(15.4, 5.62, 10, 'd'),       // แถวกลาง หันหลังชนกัน
+      row(1.0, 9.1, 12, 'u'), row(1.0, 10.82, 12, 'd'), row(15.4, 9.1, 10, 'u'), row(15.4, 10.82, 10, 'd'),    // แถวล่าง
+      { x: 29.6, y: 2.6, n: 8, o: 'h', f: 'l' }];                           // แถวแนวตั้งด้านขวา ติดแนวต้นไม้
+    const deco = [{ t: 'bldg', x: 29.2, y: .3, w: 2.6, h: 1.6, label: 'ป้อม รปภ.' },
+      ...[3.0, 5.4, 7.8, 10.2, 12.6].map(y => ({ t: 'tree', x: 31.6, y, w: 1.2, h: 1.2 })),
+      { t: 'arrow', x: 8, y: 3.0, d: '→' }, { t: 'arrow', x: 21.5, y: 3.0, d: '→' }, { t: 'arrow', x: 8, y: 8.2, d: '←' }, { t: 'arrow', x: 21.5, y: 8.2, d: '←' },
+      { t: 'arrow', x: 8, y: 13.5, d: '←' }, { t: 'arrow', x: 21.5, y: 13.5, d: '←' }, { t: 'arrow', x: 27.4, y: 7.2, d: '↓' }, { t: 'arrow', x: .45, y: 7.2, d: '↑' },
+      { t: 'arrow', x: 27.4, y: 3.0, d: '↴' }, { t: 'arrow', x: .45, y: 3.0, d: '↱' }];
+    return { w: 33.2, h: 14.4, blocks, deco };
+  }
+};
+const freePresetKey = z => z && z.free && /loft/i.test(z.name) ? 'loft' : '';
+function freeLot(z, o) {
+  const L = FREE_PRESETS[freePresetKey(z)](), px = v => (v * UNIT).toFixed(1) + 'px', box = (x, y, w, h) => `left:${px(x)};top:${px(y)};width:${px(w)};height:${px(h)}`;
+  const pos = []; L.blocks.forEach(b => { for (let i = 0; i < b.n; i++) pos.push({ x: b.o === 'v' ? b.x + i * SW : b.x, y: b.o === 'h' ? b.y + i * SW : b.y, o: b.o, f: b.f }); });
+  const n = Math.min(pos.length, Math.max(capOf(z), o.items.length));
+  let h = '';
+  (L.deco || []).forEach(d => {
+    if (d.t === 'tree') h += `<div class="deco tree" style="${box(d.x, d.y, d.w, d.h)}"></div>`;
+    else if (d.t === 'arrow') h += `<div class="deco lane-arrow" style="left:${px(d.x)};top:${px(d.y)}">${d.d}</div>`;
+    else h += `<div class="deco bldg booth" style="${box(d.x, d.y, d.w, d.h)}"><span>${esc(d.label || '')}</span></div>`;
+  });
+  for (let i = 0; i < n; i++) { const p = pos[i]; h += slotHtml(z, { slot: '', temp: o.items[i], idx: i, open: true, later: [] }, { style: box(p.x, p.y, p.o === 'v' ? SW : SL, p.o === 'v' ? SL : SW), cls: `lay o-${p.o} f-${p.f}` }); }
+  return { html: h, w: L.w * UNIT, h: L.h * UNIT };
 }
 function lotHtml(z, o) {
+  if (freePresetKey(z)) return freeLot(z, o);
   if (validLayout(z)) {
     const by = new Map(o.items.map(i => [normSlot(i.slot), i]));
     const r = customLot(z, (sl, pos) => slotHtml(z, by.get(normSlot(sl)) || { slot: sl, later: [] }, pos));
@@ -587,7 +619,7 @@ function slotHtml(z, c, pos) {
   const cls = ['slot', pos ? pos.cls : '', tg ? 't-' + tg : '', c.open ? 'open' : '', c.perm ? 'perm' : c.temp ? 'temp' : 'free', c.later && c.later.length && !c.perm && !c.temp ? 'later' : '', sel ? 'sel' : '', hl ? 'hl' : ''].filter(Boolean).join(' ');
   const pop = (c.temp && c.temp.id === S.pop) || (c.perm && c.perm.id === S.pop) ? ' pop' : '';
   let inner = `<span class="num">${esc(c.slot || '')}</span>${tg ? `<span class="stag">${tg === 'vip' ? 'VIP' : 'ผบ.'}</span>` : ''}`, label;
-  if (c.perm) { inner += `<svg class="car perm${pop}" viewBox="0 0 40 72" aria-hidden="true"><use href="#car"/></svg><span class="tag">${c.slot ? `<i class="tn">${esc(c.slot)}</i>` : ''}<span class="tnm">${esc(short(firstName(c.perm.name), 12))}</span><small>${esc(c.perm.plate)}</small></span>`; label = `ช่อง ${c.slot} ระยะยาว ${c.perm.name} ทะเบียน ${c.perm.plate}`; }
+  if (c.perm) { inner += `<svg class="car perm${pop}" viewBox="0 0 40 72" aria-hidden="true"><use href="#car"/></svg><span class="tag">${c.slot ? `<i class="tn">${esc(c.slot)}</i>` : ''}<span class="tnm">${esc(short(khun(firstName(c.perm.name)), 15))}</span><small>${esc(c.perm.plate)}</small></span>`; label = `ช่อง ${c.slot} ระยะยาว ${c.perm.name} ทะเบียน ${c.perm.plate}`; }
   else if (c.temp) { inner += `<svg class="car temp${pop}" viewBox="0 0 40 72" aria-hidden="true"><use href="#car"/></svg><span class="tag temp">${c.slot ? `<i class="tn">${esc(c.slot)}</i>` : ''}<span class="tnm">${esc(short(firstName(c.temp.name), 12))}</span><small>${esc(c.temp.from)}–${esc(c.temp.to)}</small></span>`; label = `${c.slot ? 'ช่อง ' + c.slot : 'จอดอิสระ'} ชั่วคราว ${c.temp.name} ${c.temp.from}-${c.temp.to}`; }
   else { if (sel) inner += '<i class="ghost"></i>'; label = `${c.slot ? 'ช่อง ' + c.slot : 'ที่ว่าง'} ว่าง${c.later && c.later.length ? ' มีจองช่วงเวลาอื่น' : ''}`; }
   const data = c.perm ? `data-act="sel-perm" data-id="${esc(c.perm.id)}"` : c.temp ? `data-act="sel-temp" data-id="${esc(c.temp.id)}"` : z.free ? `data-act="sel-open" data-idx="${c.idx}"` : `data-act="sel-slot" data-slot="${esc(c.slot)}"`;
@@ -929,7 +961,7 @@ function renderCheck() {
   const cell = (sl, pos) => {
     const ex = expectedAt(z, sl, S.cDate), r = res(sl), sel = S.cSlot && normSlot(S.cSlot) === normSlot(sl), tg = tagOf(z, sl);
     return `<button type="button" class="slot ${pos ? pos.cls : ''} ck ck-${r || 'todo'} ${ex ? 'owned' : ''} ${sel ? 'sel' : ''} ${tg ? 't-' + tg : ''}" data-act="ck-sel" data-slot="${esc(sl)}" ${pos ? `style="${pos.style}"` : ''} aria-label="${esc(`ช่อง ${sl} ${ex ? ex.name : 'ไม่มีเจ้าของ'} ${ckLabel(r, !!ex)}`)}" aria-pressed="${sel}">
-      <span class="num">${esc(sl)}</span>${tg ? `<span class="stag">${tg === 'vip' ? 'VIP' : 'ผบ.'}</span>` : ''}<span class="ckm">${r === 'ok' ? '✓' : r === 'none' ? (ex ? '✕' : '–') : r === 'wrong' ? '!' : ''}</span>${ex ? `<span class="cko">${esc(short(firstName(ex.name), 8))}</span>` : ''}</button>`;
+      <span class="num">${esc(sl)}</span>${tg ? `<span class="stag">${tg === 'vip' ? 'VIP' : 'ผบ.'}</span>` : ''}<span class="ckm">${r === 'ok' ? '✓' : r === 'none' ? (ex ? '✕' : '–') : r === 'wrong' ? '!' : ''}</span>${ex ? `<span class="cko">${esc(short(khun(firstName(ex.name)), 10))}</span>` : ''}</button>`;
   };
   let lot;
   if (validLayout(z)) { const r = customLot(z, cell); lot = `<div class="lot custom" id="cLot" style="width:${r.w}px;height:${r.h}px">${r.html}</div>`; }

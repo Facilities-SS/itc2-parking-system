@@ -723,7 +723,7 @@ svg.car.perm{color:#2C83D0} svg.car.temp{color:#F7941D} .slot.t-vip svg.car.temp
 .sp .lb.soil-t{fill:#6E5733;stroke:#E8DCC4;letter-spacing:.5px}
 
 /* ป้ายชื่อ: แผ่นป้ายแนวนอน เริ่มที่ปลายช่อง (แทนเลขช่อง) ยื่นออกไปทางวิ่ง เรียงเป็นแนวเดียวกันทุกแถว */
-.stage .slot .tag{bottom:auto!important;top:50%!important;transform:translate(0,-50%) translateZ(4px)!important;z-index:4;
+.stage .slot .tag{bottom:auto!important;top:50%!important;transform:translate(0,-50%) translateZ(10px)!important;z-index:4;
   display:flex;align-items:center;gap:6px;max-width:118px!important;font-size:11.5px!important;font-weight:600;line-height:1.2;
   padding:3px 8px 3px 0!important;border-radius:6px;background:#fff;color:#1D2731;border:0!important;
   box-shadow:0 1px 0 rgba(255,255,255,.6) inset,0 2px 6px rgba(0,0,0,.35);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -734,16 +734,35 @@ svg.car.perm{color:#2C83D0} svg.car.temp{color:#F7941D} .slot.t-vip svg.car.temp
 .stage .slot.lay.perm .num,.stage .slot.lay.temp .num{visibility:hidden}
 .stage .slot.lay.f-r .tag{left:calc(100% - 30px)!important}
 .stage .slot.lay.f-l .tag{left:auto!important;right:calc(100% - 30px)!important;flex-direction:row-reverse;padding:3px 0 3px 8px!important}
-.stage .slot.lay.f-d .tag,.stage .slot.lay.f-u .tag{left:50%!important;transform:translate(-50%,-50%) translateZ(4px)!important;max-width:calc(100% + 10px)!important}
+.stage .slot.lay.f-d .tag,.stage .slot.lay.f-u .tag{left:50%!important;transform:translate(-50%,-50%) translateZ(10px)!important;max-width:calc(100% + 10px)!important}
 .stage .slot .tag .tnm{overflow:hidden;text-overflow:ellipsis;min-width:0}
 .stage .slot.lay.f-d .tag,.stage .slot.lay.f-u .tag{flex-direction:column;gap:1px;padding:0 3px 3px!important;width:calc(100% + 6px);max-width:none!important;text-align:center;font-size:10.5px!important}
 .stage .slot.lay.f-d .tag .tn,.stage .slot.lay.f-u .tag .tn{align-self:stretch;margin:0 -3px;min-width:0;padding:1px 0;font-size:10px}
 .stage .slot.lay.f-d .tag .tnm,.stage .slot.lay.f-u .tag .tnm{max-width:100%}
 .stage .slot.lay.f-d .tag{top:calc(100% + 15px)!important} .stage .slot.lay.f-u .tag{top:-15px!important}
-.stage .slot.lay.f-d.sel .tag,.stage .slot.lay.f-u.sel .tag{width:auto;min-width:calc(100% + 6px)}
-.stage .slot:not(.lay) .tag{top:-10px!important;left:50%!important;transform:translate(-50%,-50%) translateZ(4px)!important}
-.stage .slot.sel .tag,.stage .slot.hl .tag{max-width:none!important;z-index:8;box-shadow:0 0 0 2px var(--mark),0 3px 10px rgba(0,0,0,.4)}
-.stage .slot.sel .tag small,.stage .slot.hl .tag small{display:inline!important;color:#5A6672;font-weight:500;margin-left:2px}
+.stage .slot:not(.lay) .tag{top:-10px!important;left:50%!important;transform:translate(-50%,-50%) translateZ(10px)!important}
+/* เลือกช่องแล้ว: ป้ายขนาดเท่าเดิม ไม่ขยายทับช่องข้างๆ แค่มีกรอบส้ม (ทะเบียนดูที่แผงด้านขวา) */
+.stage .slot.sel .tag,.stage .slot.hl .tag{z-index:8;box-shadow:0 0 0 2px var(--mark),0 3px 10px rgba(0,0,0,.4)}
+.stage .slot.sel .tag small,.stage .slot.hl .tag small{display:none!important}
 /* หลังคาโรงจอด (กรอบโปร่งลอยใน 3 มิติ) ซ่อนไว้ ดูแล้วสับสน */
 .v3d .deco.roof{display:none!important}
 svg.car.perm{color:#2D6FD6} svg.car.temp{color:#F08A1C} .slot.t-vip svg.car.temp{color:#E2552B}
+/* แถวช่องแนวตั้ง: ชื่อขึ้นได้ 2 บรรทัด เช่น "คุณ" / "ศุภกิจ" ไม่ต้องตัด */
+.stage .slot.lay.f-d .tag .tnm,.stage .slot.lay.f-u .tag .tnm{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.15}
+.stage .slot.lay.f-u .tag{top:-3px!important;transform:translate(-50%,-100%) translateZ(10px)!important}
+.stage .slot.lay.f-d .tag{top:calc(100% + 3px)!important;transform:translate(-50%,0) translateZ(10px)!important}
+/* ป้ายที่ไม่มีเลขช่อง (ลานจอดอิสระ) ต้องมีระยะขอบซ้ายขวา ไม่ให้ตัวหนังสือชิดขอบ */
+.stage .slot .tag{padding-left:8px!important;padding-right:8px!important}
+.stage .slot .tag .tn{margin:-3px 0 -3px -8px}
+.stage .slot.lay.f-l .tag .tn{margin:-3px -8px -3px 0}
+.stage .slot.lay.f-d .tag,.stage .slot.lay.f-u .tag{padding:0 4px 3px!important}
+.stage .slot.lay.f-d .tag .tn,.stage .slot.lay.f-u .tag .tn{margin:0 -4px}
+/* ลานจอดอิสระ (ไม่มีผังเลขช่อง): ป้ายอยู่ในช่องด้านบน ห่างจากเส้นแบ่งช่องและเส้นทางวิ่ง */
+.stage .slot:not(.lay) .tag{top:5px!important;left:50%!important;transform:translate(-50%,0) translateZ(10px)!important;max-width:calc(100% - 8px)!important;justify-content:center}
+.stage .slot:not(.lay) svg.car{margin-top:-24px}
+.stage .slot:not(.lay) .tag{font-size:10.5px!important;padding:2px 5px!important;max-width:calc(100% - 4px)!important;letter-spacing:-.1px}
+/* ลาน Loft: แนวต้นไม้ ลูกศรทางวิ่ง ป้อม รปภ. */
+.lot .deco.tree{border-radius:50%;background:radial-gradient(circle at 35% 30%,#8FD17A 0 18%,#4E9F3D 45%,#2F6E2A 100%);box-shadow:0 3px 6px rgba(0,0,0,.45);transform:translateZ(14px)}
+.lot .deco.lane-arrow{position:absolute;font:700 30px/1 var(--f-ui);color:#F2B35B;opacity:.9;transform:translate(-50%,-50%);pointer-events:none}
+.lot .deco.booth{background:#DDE6EC;border:2px solid #9AAAB6;border-radius:6px}
+.lot .deco.booth span{font-size:11px;color:#3B4A57}
