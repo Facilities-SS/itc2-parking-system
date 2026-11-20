@@ -565,13 +565,19 @@ const FREE_PRESETS = {
       row(1.6, .4, 12, 'd'), row(15.4, .4, 12, 'd'),                       // แถวบนติดขอบลาน หันออกทางวิ่ง
       row(1.0, 3.9, 12, 'u'), row(1.0, 5.62, 12, 'd'), row(15.4, 3.9, 10, 'u'), row(15.4, 5.62, 10, 'd'),       // แถวกลาง หันหลังชนกัน
       row(1.0, 9.1, 12, 'u'), row(1.0, 10.82, 12, 'd'), row(15.4, 9.1, 10, 'u'), row(15.4, 10.82, 10, 'd'),    // แถวล่าง
-      { x: 29.6, y: 2.6, n: 8, o: 'h', f: 'l' }];                           // แถวแนวตั้งด้านขวา ติดแนวต้นไม้
+      { x: 29.6, y: 4.3, n: 8, o: 'h', f: 'l' }];                           // แถวแนวตั้งด้านขวา ติดแนวต้นไม้
     const deco = [{ t: 'bldg', x: 29.2, y: .3, w: 2.6, h: 1.6, label: 'ป้อม รปภ.' },
-      ...[3.0, 5.4, 7.8, 10.2, 12.6].map(y => ({ t: 'tree', x: 31.6, y, w: 1.2, h: 1.2 })),
-      { t: 'arrow', x: 8, y: 3.0, d: '→' }, { t: 'arrow', x: 21.5, y: 3.0, d: '→' }, { t: 'arrow', x: 8, y: 8.2, d: '←' }, { t: 'arrow', x: 21.5, y: 8.2, d: '←' },
-      { t: 'arrow', x: 8, y: 13.5, d: '←' }, { t: 'arrow', x: 21.5, y: 13.5, d: '←' }, { t: 'arrow', x: 27.4, y: 7.2, d: '↓' }, { t: 'arrow', x: .45, y: 7.2, d: '↑' },
-      { t: 'arrow', x: 27.4, y: 3.0, d: '↴' }, { t: 'arrow', x: .45, y: 3.0, d: '↱' }];
-    return { w: 33.2, h: 14.4, blocks, deco };
+      ...[4.4, 6.5, 8.6, 10.7, 12.8].map(y => ({ t: 'tree', x: 31.6, y, w: 1.2, h: 1.2 })),
+      { t: 'lane', x: .45, y: 3.0, w: 26.95, h: 0 }, { t: 'lane', x: .45, y: 8.2, w: 26.95, h: 0 }, { t: 'lane', x: .45, y: 13.5, w: 26.95, h: 0 },
+      { t: 'lane', x: .45, y: 3.0, w: 0, h: 10.5 }, { t: 'lane', x: 27.4, y: 3.0, w: 0, h: 10.5 },
+      ...[[5, 3.0, 'r'], [11, 3.0, 'r'], [18.5, 3.0, 'r'], [24, 3.0, 'r'], [5, 8.2, 'l'], [11, 8.2, 'l'], [18.5, 8.2, 'l'], [24, 8.2, 'l'],
+        [5, 13.5, 'l'], [11, 13.5, 'l'], [18.5, 13.5, 'l'], [24, 13.5, 'l'], [27.4, 5.6, 'd'], [27.4, 10.9, 'd'], [.45, 5.6, 'u'], [.45, 10.9, 'u'],
+        [.45, 3.0, 'tl'], [27.4, 3.0, 'tr'], [27.4, 13.5, 'br'], [.45, 13.5, 'bl']].map(([x, y, d]) => ({ t: 'arrow', x, y, d })),
+      { t: 'entry', x: 27.4, y: 2.25, w: 7.96, h: 1.5 },                      // ทางเข้า-ออกลาน ด้านขวาบน ระหว่างป้อม รปภ. กับแถวช่องด้านขวา
+      { t: 'lane', x: 27.4, y: 3.0, w: 7.2, h: 0 },
+      { t: 'arrow', x: 31.0, y: 2.62, d: 'r', c: 'out' }, { t: 'arrow', x: 31.0, y: 3.38, d: 'l', c: 'in' },
+      { t: 'gate', x: 33.0, y: 2.62, d: 'out' }, { t: 'gate', x: 33.0, y: 3.38, d: 'in' }];
+    return { w: 34.6, h: 14.4, blocks, deco };
   }
 };
 const freePresetKey = z => z && z.free && /loft/i.test(z.name) ? 'loft' : '';
@@ -582,7 +588,13 @@ function freeLot(z, o) {
   let h = '';
   (L.deco || []).forEach(d => {
     if (d.t === 'tree') h += `<div class="deco tree" style="${box(d.x, d.y, d.w, d.h)}"></div>`;
-    else if (d.t === 'arrow') h += `<div class="deco lane-arrow" style="left:${px(d.x)};top:${px(d.y)}">${d.d}</div>`;
+    else if (d.t === 'lane') h += `<div class="deco lane-line ${d.w ? 'lh' : 'lv'}" style="left:${px(d.x)};top:${px(d.y)};${d.w ? 'width:' + px(d.w) : 'height:' + px(d.h)}"></div>`;
+    else if (d.t === 'arrow') { const turn = /^(tl|tr|br|bl)$/.test(d.d), rot = { r: 0, d: 90, l: 180, u: 270, tl: 0, tr: 90, br: 180, bl: 270 }[d.d];
+      h += `<svg class="deco lane-arrow${turn ? ' turn' : ''}${d.c ? ' ea ea-' + d.c : ''}" style="left:${px(d.x)};top:${px(d.y)};transform:translate(-50%,-50%) rotate(${rot}deg)" viewBox="${turn ? '0 0 32 32' : '0 0 40 20'}" aria-hidden="true">${turn
+        ? '<path d="M9 30 V12 Q9 9 12 9 H22" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 1 L31 9 L21 17 Z" fill="currentColor"/>'
+        : '<path d="M2 7 H24 V1 L38 10 L24 19 V13 H2 Z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>'}</svg>`; }
+    else if (d.t === 'gate') h += `<div class="deco lot-gate lot-gate-${d.d}" style="left:${px(d.x)};top:${px(d.y)}">${d.d === 'out' ? 'ทางออก' : 'ทางเข้า'}</div>`;
+    else if (d.t === 'entry') h += `<div class="deco lot-entry" style="${box(d.x, d.y, d.w, d.h)}"></div>`;
     else h += `<div class="deco bldg booth" style="${box(d.x, d.y, d.w, d.h)}"><span>${esc(d.label || '')}</span></div>`;
   });
   for (let i = 0; i < n; i++) { const p = pos[i]; h += slotHtml(z, { slot: '', temp: o.items[i], idx: i, open: true, later: [] }, { style: box(p.x, p.y, p.o === 'v' ? SW : SL, p.o === 'v' ? SL : SW), cls: `lay o-${p.o} f-${p.f}` }); }

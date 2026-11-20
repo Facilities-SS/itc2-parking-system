@@ -766,3 +766,23 @@ svg.car.perm{color:#2D6FD6} svg.car.temp{color:#F08A1C} .slot.t-vip svg.car.temp
 .lot .deco.lane-arrow{position:absolute;font:700 30px/1 var(--f-ui);color:#F2B35B;opacity:.9;transform:translate(-50%,-50%);pointer-events:none}
 .lot .deco.booth{background:#DDE6EC;border:2px solid #9AAAB6;border-radius:6px}
 .lot .deco.booth span{font-size:11px;color:#3B4A57}
+/* ลาน Loft ให้เหมือนป้ายแผนผังจริง: ลูกศรใหญ่ชัด ป้อม รปภ. ทางเข้า-ออก */
+.lot .deco.lane-arrow{font-size:40px;color:#F4F1E8;opacity:.85;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.lot .deco.booth span{font-size:14px!important;font-weight:700}
+.lot .deco.lot-gate{position:absolute;white-space:nowrap;font:700 13px/1 var(--f-ui);color:#fff;padding:5px 8px;border-radius:6px;pointer-events:none}
+.lot .deco.lot-gate b{font-size:16px}
+.lot .deco.lot-gate-out{background:#D6402E}
+.lot .deco.lot-gate-in{background:#2E9E6B}
+/* ลาน Loft: ลูกศรทาสีบนพื้นแบบเครื่องหมายจราจร ชัดเจน + เส้นกลางทางวิ่ง */
+.lot svg.deco.lane-arrow{position:absolute;width:72px;height:36px;color:#FFFFFF;filter:drop-shadow(0 0 1px rgba(0,0,0,.6)) drop-shadow(0 2px 3px rgba(0,0,0,.45));pointer-events:none;z-index:1}
+.lot svg.deco.lane-arrow.turn{width:46px;height:46px;color:#FFD54A}
+.lot .deco.lane-line{position:absolute;pointer-events:none;opacity:.55}
+.lot .deco.lane-line.lh{border-top:3px dashed #F2B35B;transform:translateY(-1.5px)}
+.lot .deco.lane-line.lv{border-left:3px dashed #F2B35B;transform:translateX(-1.5px)}
+/* ทางเข้า-ออกลาน Loft: ช่องเปิดที่ขอบขวา มีลูกศรแดง (ออก) เขียว (เข้า) ทาสีบนพื้น */
+.lot .deco.lot-entry{background:#2C3138;border-top:2px solid rgba(255,255,255,.55);border-bottom:2px solid rgba(255,255,255,.55);border-right:0;z-index:0}
+.lot svg.deco.lane-arrow.ea{width:58px;height:29px;z-index:2}
+.lot svg.deco.lane-arrow.ea-out{color:#FF5A4E}
+.lot svg.deco.lane-arrow.ea-in{color:#3DD68C}
+.lot .deco.lot-gate{transform:translate(-50%,-50%);padding:3px 7px;font-size:12px;z-index:2}
+.lot .deco.lot-entry{width:auto!important;right:-6px}
