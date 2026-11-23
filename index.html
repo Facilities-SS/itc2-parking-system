@@ -210,7 +210,7 @@
       <label class="f"><span>สถานที่</span><select id="bZone" required></select></label>
       <label class="f g-temp"><span>ประเภทผู้จอด</span><select id="bKind"></select></label>
       <label class="f g-temp"><span>วันที่เริ่ม</span><input id="bDate" type="date" required></label>
-      <label class="f g-temp"><span>ถึงวันที่ <small class="muted">(ถ้าจองหลายวัน)</small></span><input id="bDateTo" type="date"></label>
+      <label class="f g-temp"><span id="bDateToLbl">ถึงวันที่ <small class="muted">(ถ้าจองหลายวัน)</small></span><input id="bDateTo" type="date"></label>
       <div class="f span2 g-temp"><span>จำนวนวัน</span>
         <div class="tpick dpick" role="group" aria-label="เลือกจำนวนวันเร็ว">
           <button type="button" data-act="dpick" data-d="0">วันเดียว</button>
@@ -218,7 +218,9 @@
           <button type="button" data-act="dpick" data-m="1">1 เดือน</button>
           <button type="button" data-act="dpick" data-m="3">3 เดือน</button>
           <button type="button" data-act="dpick" data-m="6">6 เดือน</button>
-        </div><small class="muted" id="bDays"></small></div>
+        </div></div>
+      <div class="f span2 g-temp"><span>จองซ้ำทุกสัปดาห์ <small class="muted">(เลือกวัน ถ้าจองประจำบางวัน เช่น ทุกศุกร์-เสาร์)</small></span>
+        <div class="wpick" role="group" aria-label="เลือกวันที่จองซ้ำทุกสัปดาห์"><button type="button" data-act="wpick" data-w="1" aria-pressed="false">จ.</button><button type="button" data-act="wpick" data-w="2" aria-pressed="false">อ.</button><button type="button" data-act="wpick" data-w="3" aria-pressed="false">พ.</button><button type="button" data-act="wpick" data-w="4" aria-pressed="false">พฤ.</button><button type="button" data-act="wpick" data-w="5" aria-pressed="false">ศ.</button><button type="button" data-act="wpick" data-w="6" aria-pressed="false">ส.</button><button type="button" data-act="wpick" data-w="0" aria-pressed="false">อา.</button></div><small class="muted" id="bDays"></small></div>
       <label class="f g-temp"><span>เวลาที่ขอเข้า</span><input id="bFrom" type="time" required></label>
       <label class="f g-temp"><span>เวลาที่ขอออก</span><input id="bTo" type="time" required></label>
       <div class="f span2 g-temp"><span>ช่วงเวลาที่ขอใช้ (แตะเพื่อเลือกเร็ว หรือพิมพ์เวลาเองด้านบน)</span>

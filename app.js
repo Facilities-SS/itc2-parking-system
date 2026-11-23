@@ -133,17 +133,26 @@ function touch(r, a) { const n = Date.now(); r.updatedAt = n; r.updatedBy = whoN
 
 /* จองชั่วคราวได้หลายวันต่อเนื่อง: date = วันแรก, dateTo = วันสุดท้าย (ไม่มี = วันเดียว) ใช้ช่วงเวลา from–to เดียวกันทุกวัน */
 const MAX_DAYS = 186;   // จองต่อเนื่องได้สูงสุดประมาณ 6 เดือน
-const dEnd = t => t.dateTo && t.dateTo > t.date ? t.dateTo : t.date;
+/* จองซ้ำทุกสัปดาห์: wd = [เลขวัน 0=อา ... 6=ส] จองเฉพาะวันนั้นๆ ตั้งแต่ date ถึง dateTo (ไม่มี dateTo = ไม่มีกำหนดสิ้นสุด) */
+const OPEN_END = '9999-12-31', WD_S = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'], WD_L = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+const isRep = t => !!t && Array.isArray(t.wd) && t.wd.length > 0 && t.wd.length < 7;
+const dow = d => toD(d).getUTCDay();
+const wdTxt = t => { const w = [...t.wd].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)); return 'ทุกวัน' + w.map(i => WD_L[i]).join(' '); };
+const dEnd = t => t.dateTo && t.dateTo > t.date ? t.dateTo : isRep(t) ? OPEN_END : t.date;
+const isOpen = t => dEnd(t) === OPEN_END;
 const isMulti = t => dEnd(t) !== t.date;
-const onDay = (t, d) => t.date <= d && d <= dEnd(t);
+const onDay = (t, d) => t.date <= d && d <= dEnd(t) && (!isRep(t) || t.wd.includes(dow(d)));
+const nextDay = (t, from) => { let d = from && from > t.date ? from : t.date; for (let i = 0; i < 8; i++, d = addDays(d, 1)) { if (d > dEnd(t)) break; if (onDay(t, d)) return d; } return ''; };
+const lastDay = t => { if (!isRep(t) || isOpen(t)) return dEnd(t); let d = dEnd(t); for (let i = 0; i < 7; i++, d = addDays(d, -1)) if (onDay(t, d)) return d; return t.date; };
 const spanDays = (a, b) => a.date <= dEnd(b) && b.date <= dEnd(a);
 const dayCount = t => Math.round((toD(dEnd(t)) - toD(t.date)) / 864e5) + 1;
-const daysOf = (t, from) => { const out = []; let d = from && from > t.date ? from : t.date; const e = dEnd(t); while (d <= e && out.length < MAX_DAYS + 1) { out.push(d); d = addDays(d, 1); } return out; };
-const focusDate = t => t.date < today() && dEnd(t) >= today() ? today() : t.date;   // วันที่ใช้แสดงในผัง
-const fmtRange = t => isMulti(t) ? `${fmtDate(t.date)} – ${fmtDate(dEnd(t))} (${dayCount(t)} วัน)` : fmtDate(t.date);
+const daysOf = (t, from) => { const out = []; let d = from && from > t.date ? from : t.date; const e = dEnd(t); for (let i = 0; d <= e && out.length < MAX_DAYS + 1 && i < 1500; i++) { if (onDay(t, d)) out.push(d); d = addDays(d, 1); } return out; };
+const focusDate = t => isRep(t) ? (nextDay(t, today()) || nextDay(t) || t.date) : t.date < today() && dEnd(t) >= today() ? today() : t.date;   // วันที่ใช้แสดงในผัง
+const fmtRange = t => isRep(t) ? `${wdTxt(t)} ตั้งแต่ ${fmtDate(nextDay(t) || t.date)} ${isOpen(t) ? '(ไม่มีกำหนดสิ้นสุด)' : 'ถึง ' + fmtDate(dEnd(t))}` : isMulti(t) ? `${fmtDate(t.date)} – ${fmtDate(dEnd(t))} (${dayCount(t)} วัน)` : fmtDate(t.date);
+const repBadge = t => `ประจำ${wdTxt(t)}${isOpen(t) ? '' : ' ถึง ' + fmtDate(dEnd(t))}`;
 function tStatus(t) {
   if (t.cancelled) return 'cancelled';
-  const d = today(), n = nowHM(), e = dEnd(t);
+  const d = today(), n = nowHM(), e = lastDay(t);
   if (e < d || (e === d && t.to <= n)) return 'expired';
   if (onDay(t, d)) return t.from <= n && n < t.to ? 'now' : n < t.from ? 'today' : 'upcoming';
   return 'upcoming';
@@ -236,7 +245,7 @@ function competitorsTemp(rec, day, lockE, rangeE) {   // รายการช�
   const list = db.temp.filter(t => t.id !== rec.id && t.zone === rec.zone && onDay(t, day) && isLiveOn(t, day)).map(t => ({ id: t.id, s: t.slot || '', f: t.from, t: t.to, name: t.name }));
   const add = (id, v) => { if (id !== rec.id && !list.some(x => x.id === id) && validEntry(id, v, 'temp')) list.push({ id, s: v.s || '', f: v.f, t: v.t, name: 'ผู้ใช้อื่น (เพิ่งบันทึก)' }); };
   if (lockE) Object.entries(lockE).forEach(([id, v]) => add(id, v));
-  if (rangeE) Object.entries(rangeE).forEach(([id, v]) => { if (v.d1 <= day && day <= v.d2) add(id, v); });
+  if (rangeE) Object.entries(rangeE).forEach(([id, v]) => { if (v.d1 <= day && day <= v.d2 && (!Array.isArray(v.w) || v.w.includes(dow(day)))) add(id, v); });
   return list;
 }
 function permHolders(zid, lockE, exceptId) {
@@ -248,7 +257,8 @@ function checkTemp(rec, tEs, pE, rE) {   // tEs = { วันที่: รา�
   const z = getZone(rec.zone); if (!z) return 'ไม่พบสถานที่';
   if (!rec.name || !rec.plate || !rec.date || !rec.from || !rec.to) return 'กรอกชื่อ ทะเบียน วันที่ และเวลาให้ครบ';
   if (rec.dateTo && rec.dateTo < rec.date) return 'วันสุดท้ายต้องไม่ก่อนวันแรก';
-  if (dayCount(rec) > MAX_DAYS) return `จองต่อเนื่องได้สูงสุด ${MAX_DAYS} วัน (ประมาณ 6 เดือน)`;
+  if (!isRep(rec) && dayCount(rec) > MAX_DAYS) return `จองต่อเนื่องได้สูงสุด ${MAX_DAYS} วัน (ประมาณ 6 เดือน)`;
+  if (isRep(rec) && !nextDay(rec)) return 'ช่วงวันที่ที่เลือกไม่มีวันที่ตรงกับวันที่เลือกไว้';
   if (rec.to <= rec.from) return 'เวลาออกต้องหลังเวลาเข้า';
   if (rec.cancelled || !isLive(rec)) return '';
   const days = daysOf(rec, today()).filter(d => d > today() || rec.to > nowHM()), many = days.length > 1;
@@ -304,7 +314,7 @@ async function saveTemp(rec, old) {
       const e2 = checkTemp(rec, tEs, lockEntries(pS), lockEntries(rS)); if (e2) throw new UserErr(e2);
       if (live) {
         const v = { s: rec.slot || '', f: rec.from, t: rec.to, at: Date.now() };
-        if (multi) tx.set(rRef, { e: { [rec.id]: { ...v, d1: rec.date, d2: dEnd(rec) } } }, { merge: true });
+        if (multi) tx.set(rRef, { e: { [rec.id]: { ...v, d1: rec.date, d2: dEnd(rec), ...(isRep(rec) ? { w: rec.wd } : {}) } } }, { merge: true });
         else tx.set(dRefs[0][1], { e: { [rec.id]: v } }, { merge: true });
       }
       tx.set(col.doc(rec.id), toDoc('temp', rec));
@@ -341,7 +351,7 @@ async function savePerm(rec, old) {
 async function rebuildLocks() {   // สร้างดัชนีใหม่ทั้งหมดจากข้อมูลจริง (หลังนำเข้า/กู้คืน)
   if (!fs) return;
   const want = new Map();
-  db.temp.filter(isLive).forEach(t => { const k = lockOf(t); if (!want.has(k)) want.set(k, { e: {} }); want.get(k).e[t.id] = { s: t.slot || '', f: t.from, t: t.to, at: t.updatedAt || Date.now(), ...(isMulti(t) ? { d1: t.date, d2: dEnd(t) } : {}) }; });
+  db.temp.filter(isLive).forEach(t => { const k = lockOf(t); if (!want.has(k)) want.set(k, { e: {} }); want.get(k).e[t.id] = { s: t.slot || '', f: t.from, t: t.to, at: t.updatedAt || Date.now(), ...(isMulti(t) ? { d1: t.date, d2: dEnd(t), ...(isRep(t) ? { w: t.wd } : {}) } : {}) }; });
   db.permanent.filter(p => p.active).forEach(p => { const k = lockP(p.zone); if (!want.has(k)) want.set(k, { e: {} }); want.get(k).e[p.id] = { s: p.slot, at: p.updatedAt || Date.now() }; });
   const cur = await locks.get(); const ops = [];
   cur.forEach(d => { if (!want.has(d.id)) ops.push(b => b.delete(d.ref)); });
@@ -673,7 +683,7 @@ function renderPanelInner(z, o) {
     p.innerHTML = `<div class="p-slot">${esc(t.slot || (zz && zz.free ? 'จอดอิสระ' : 'ยังไม่ระบุช่อง'))}</div><div class="p-zone">${esc(zoneName(t.zone))}</div>
       <p style="margin-top:10px"><span class="status st-${st}">${ST_TXT[st]}</span></p>
       <dl><dt>ชื่อ / บริษัท</dt><dd>${esc(t.name)}</dd><dt>ประเภท</dt><dd>${esc(t.kind || 'ชั่วคราว')}</dd><dt>ทะเบียน</dt><dd>${esc(t.plate)}</dd>
-      <dt>เวลาที่ขอใช้</dt><dd>${fmtRange(t)}<br>${esc(t.from)}–${esc(t.to)} น.${isMulti(t) ? ' ทุกวัน' : ''}</dd>${t.note ? `<dt>หมายเหตุ</dt><dd>${esc(t.note)}</dd>` : ''}
+      <dt>เวลาที่ขอใช้</dt><dd>${fmtRange(t)}<br>${esc(t.from)}–${esc(t.to)} น.${isMulti(t) && !isRep(t) ? ' ทุกวัน' : ''}</dd>${t.note ? `<dt>หมายเหตุ</dt><dd>${esc(t.note)}</dd>` : ''}
       <dt>บันทึกโดย</dt><dd>${esc(t.createdBy || '—')}<br><span class="muted">${fmtTs(t.createdAt)}</span></dd></dl>
       <div class="p-actions"><button class="btn pri" data-act="edit-temp" data-id="${esc(t.id)}">แก้ไข / ย้ายช่อง</button>${isLive(t) ? `<button class="btn ghost" data-act="cancel-temp" data-id="${esc(t.id)}">ยกเลิกการจอง</button>` : ''}${histBtn('temp', t.id)}</div>
       ${otherList(others, 'จองช่องนี้ช่วงอื่นในวันเดียวกัน')}`;
@@ -730,7 +740,7 @@ function gotoRec(k, id) {
 }
 
 /* ---------- แผ่นฟอร์มจอง ---------- */
-let bType = 'temp', bEdit = null;
+let bType = 'temp', bEdit = null, sheetWd = [];
 function openSheet(o = {}) {
   bEdit = o.edit || null; bType = o.type || 'temp';
   const r = bEdit;
@@ -739,7 +749,7 @@ function openSheet(o = {}) {
   $('bKind').innerHTML = KINDS.concat(VIP_KIND).map(k => `<option>${esc(k)}</option>`).join('');
   $('bKind').value = r && r.kind ? r.kind : KINDS[0];
   $('bDate').value = r && r.date ? r.date : (o.date || S.vDate); $('bDate').min = r ? '' : today();
-  $('bDateTo').value = r && isMulti(r) ? dEnd(r) : ''; $('bDateTo').min = $('bDate').value;
+  sheetWd = r && isRep(r) ? [...r.wd] : []; $('bDateTo').value = r && isMulti(r) && !isOpen(r) ? dEnd(r) : ''; $('bDateTo').min = $('bDate').value;
   $('bFrom').value = r && r.from ? r.from : (o.from || S.vFrom); $('bTo').value = r && r.to ? r.to : (o.to || S.vTo);
   $('bNote').value = r ? (r.note || '') : '';
   $('bEmp').value = r ? (r.empId || '') : ''; $('bDept').value = r ? (r.dept || '') : ''; $('bDiv').value = r ? (r.division || '') : '';
@@ -774,15 +784,15 @@ function dpickTo(b, d0) {   // วันสุดท้ายของปุ่�
 }
 function sheetRange() {   // ช่วงวันที่ในฟอร์ม { date, dateTo }
   const date = $('bDate').value, to = $('bDateTo').value;
-  return { date, dateTo: to && to > date ? to : '' };
+  return { date, dateTo: to && to > date ? to : '', ...(sheetWd.length && sheetWd.length < 7 ? { wd: [...sheetWd] } : {}) };
 }
 // ช่องที่ว่างทุกวันในช่วงที่เลือก
 function freeSlotsRange(z, rg, from, to, exceptId) {
-  const days = daysOf({ date: rg.date, dateTo: rg.dateTo }, today()); if (!days.length) days.push(rg.date);
+  const days = daysOf(rg, today()); if (!days.length) days.push(nextDay(rg) || rg.date);
   return days.reduce((acc, d) => { const f = new Set(freeSlotsFor(z, d, from, to, exceptId).map(normSlot)); return acc.filter(s => f.has(normSlot(s))); }, tempSlotsOf(z));
 }
 function maxUsedRange(z, rg, from, to, exceptId) {   // จำนวนรถสูงสุดในวันใดวันหนึ่งของช่วง (พื้นที่จอดอิสระ)
-  const days = daysOf({ date: rg.date, dateTo: rg.dateTo }, today()); if (!days.length) days.push(rg.date);
+  const days = daysOf(rg, today()); if (!days.length) days.push(nextDay(rg) || rg.date);
   let mx = 0, at = days[0]; days.forEach(d => { const n = occupancy(z, d, from, to).items.filter(t => t.id !== exceptId).length; if (n > mx) { mx = n; at = d; } }); return { mx, at, n: days.length };
 }
 function refreshSheetSlots() {
@@ -790,13 +800,15 @@ function refreshSheetSlots() {
   const z = getZone($('bZone').value), perm = bType === 'perm', id = $('bId').value;
   const rg = sheetRange(), date = rg.date, from = $('bFrom').value, to = $('bTo').value;
   $('bDateTo').min = date || today();
-  const nd = rg.dateTo ? dayCount(rg) : 1;
-  $('bDays').textContent = rg.dateTo ? `รวม ${nd} วัน ${fmtDate(date)} – ${fmtDate(rg.dateTo)} เวลา ${from || '--:--'}–${to || '--:--'} น. ทุกวัน${nd > MAX_DAYS ? ` (เกิน ${MAX_DAYS} วัน)` : ''}` : 'วันเดียว';
-  document.querySelectorAll('.dpick button').forEach(x => x.classList.toggle('on', x.dataset.d === '0' ? !rg.dateTo : rg.dateTo && rg.dateTo === dpickTo(x, date)));
+  const rep = isRep(rg), multi = !!rg.dateTo || rep, nd = rg.dateTo && !rep ? dayCount(rg) : 1;
+  document.querySelectorAll('.wpick button').forEach(x => x.setAttribute('aria-pressed', sheetWd.includes(+x.dataset.w)));
+  $('bDateToLbl').innerHTML = rep ? 'ถึงวันที่ <small class="muted">(ไม่ใส่ = ไม่มีกำหนดสิ้นสุด)</small>' : 'ถึงวันที่ <small class="muted">(ถ้าจองหลายวัน)</small>';
+  $('bDays').textContent = rep ? `จอง${wdTxt(rg)} เวลา ${from || '--:--'}–${to || '--:--'} น. ตั้งแต่ ${fmtDate(nextDay(rg) || date)} ${rg.dateTo ? 'ถึง ' + fmtDate(rg.dateTo) : 'ไม่มีกำหนดสิ้นสุด'}` : rg.dateTo ? `รวม ${nd} วัน ${fmtDate(date)} – ${fmtDate(rg.dateTo)} เวลา ${from || '--:--'}–${to || '--:--'} น. ทุกวัน${nd > MAX_DAYS ? ` (เกิน ${MAX_DAYS} วัน)` : ''}` : 'วันเดียว';
+  document.querySelectorAll('.dpick button').forEach(x => x.classList.toggle('on', x.dataset.d === '0' ? !multi : rg.dateTo && rg.dateTo === dpickTo(x, date)));
   const cur = sheetSlot;
   $('bSlotWrap').hidden = !!(z && z.free);
   let list = [];
-  if (z && !z.free) list = perm ? permFreeSlots(z, id) : (rg.dateTo ? freeSlotsRange(z, rg, from, to, id) : freeSlotsFor(z, date, from, to, id));
+  if (z && !z.free) list = perm ? permFreeSlots(z, id) : (multi ? freeSlotsRange(z, rg, from, to, id) : freeSlotsFor(z, date, from, to, id));
   if (cur && z && hasSlot(z, cur) && !list.some(s => normSlot(s) === normSlot(cur))) list = [cur, ...list];   // ช่องที่เลือกไว้ ให้ตรวจตอนบันทึก
   $('bSlot').innerHTML = (perm || (z && isPermZone(z)) ? '<option value="">เลือกหมายเลขช่อง</option>' : '<option value="">ยังไม่ระบุช่อง</option>') + list.map(s => `<option value="${esc(s)}">ช่อง ${esc(s)}${tagOf(z, s) ? ' (' + TAG_TXT[tagOf(z, s)] + ')' : ''}</option>`).join('');
   $('bSlot').value = list.find(s => normSlot(s) === normSlot(cur)) || '';
@@ -806,10 +818,10 @@ function refreshSheetSlots() {
   if (vipZone) $('bKind').value = VIP_KIND; else if ($('bKind').value === VIP_KIND && !(bEdit && bEdit.kind === VIP_KIND)) $('bKind').value = KINDS[0];
   $('bKind').disabled = !!vipZone;
   if (z) {
-    if (z.free) { if (rg.dateTo) { const m = maxUsedRange(z, rg, from, to, id); $('bHint').textContent = `${z.name} จอดอิสระ ช่วงที่เลือก วันที่มีรถมากที่สุด ${m.mx}/${capOf(z)} คัน (${fmtDate(m.at)})`; } else { const o = occupancy(z, date, from, to); $('bHint').textContent = `${z.name} จอดอิสระ ช่วงเวลานี้มีรถ ${o.used}/${o.cap} คัน`; } }
-    else $('bHint').textContent = perm ? `ช่องที่ให้เป็นช่องประจำได้ ${permFreeSlots(z, id).length} จาก ${permSlotsOf(z).length} ช่อง${tagOf(z, slot) === 'exec' ? ' (ช่องนี้สำหรับผู้บริหาร)' : ''}` : `ช่วง ${from || '--:--'}–${to || '--:--'} ${rg.dateTo ? 'ว่างทุกวัน' : 'ว่าง'} ${list.filter(x => normSlot(x) !== normSlot(cur) || freeSlotsFor(z, date, from, to, id).some(y => normSlot(y) === normSlot(x))).length} จาก ${tempSlotsOf(z).length} ช่อง${vipZone ? ' VIP' : ''}`;
+    if (z.free) { if (multi) { const m = maxUsedRange(z, rg, from, to, id); $('bHint').textContent = `${z.name} จอดอิสระ ช่วงที่เลือก วันที่มีรถมากที่สุด ${m.mx}/${capOf(z)} คัน (${fmtDate(m.at)})`; } else { const o = occupancy(z, date, from, to); $('bHint').textContent = `${z.name} จอดอิสระ ช่วงเวลานี้มีรถ ${o.used}/${o.cap} คัน`; } }
+    else $('bHint').textContent = perm ? `ช่องที่ให้เป็นช่องประจำได้ ${permFreeSlots(z, id).length} จาก ${permSlotsOf(z).length} ช่อง${tagOf(z, slot) === 'exec' ? ' (ช่องนี้สำหรับผู้บริหาร)' : ''}` : `ช่วง ${from || '--:--'}–${to || '--:--'} ${multi ? 'ว่างทุกวัน' : 'ว่าง'} ${list.filter(x => normSlot(x) !== normSlot(cur) || freeSlotsFor(z, date, from, to, id).some(y => normSlot(y) === normSlot(x))).length} จาก ${tempSlotsOf(z).length} ช่อง${vipZone ? ' VIP' : ''}`;
   } else $('bHint').textContent = '';
-  $('bPicked').innerHTML = z ? `<b>${esc(z.free ? 'P' : (slot || '?'))}</b><span>${esc(z.name)}${z.free ? ' จอดอิสระ' : slot ? '' : ' (ยังไม่เลือกช่อง)'}<br>${perm ? 'ช่องประจำ ทุกวัน' : `${rg.dateTo ? `${fmtDate(date)} – ${fmtDate(rg.dateTo)} (${nd} วัน)` : fmtDate(date)} ${esc(from)}–${esc(to)} น.`}</span>` : '';
+  $('bPicked').innerHTML = z ? `<b>${esc(z.free ? 'P' : (slot || '?'))}</b><span>${esc(z.name)}${z.free ? ' จอดอิสระ' : slot ? '' : ' (ยังไม่เลือกช่อง)'}<br>${perm ? 'ช่องประจำ ทุกวัน' : `${rep ? esc(fmtRange(rg)) : rg.dateTo ? `${fmtDate(date)} – ${fmtDate(rg.dateTo)} (${nd} วัน)` : fmtDate(date)} ${esc(from)}–${esc(to)} น.`}</span>` : '';
 }
 function closeSheet() { $('sheet').hidden = true; document.body.style.overflow = ''; bEdit = null; }
 async function submitSheet(e) {
@@ -829,13 +841,13 @@ async function submitSheet(e) {
       const old = id ? db.temp.find(t => t.id === id) : null, z = getZone($('bZone').value);
       const rec = { ...(old || {}), id: id || uid(), name: $('bName').value.trim(), plate: fmtPlates($('bPlate').value), zone: $('bZone').value, slot: z && z.free ? '' : $('bSlot').value,
         date: $('bDate').value, from: $('bFrom').value, to: $('bTo').value, kind: $('bKind').value, note: $('bNote').value.trim(), cancelled: old ? !!old.cancelled : false };
-      const dto = sheetRange().dateTo; if (dto) rec.dateTo = dto; else delete rec.dateTo;
+      const srg = sheetRange(); if (srg.dateTo) rec.dateTo = srg.dateTo; else delete rec.dateTo; if (srg.wd) rec.wd = srg.wd; else delete rec.wd; if (isRep(rec)) rec.date = nextDay(rec) || rec.date;
       if (z && isPermZone(z)) rec.kind = VIP_KIND;
       if (!old && rec.date < today()) throw new UserErr('เลือกวันที่ย้อนหลังไม่ได้');
       if ($('bDateTo').value && $('bDateTo').value < rec.date) throw new UserErr('วันสุดท้ายต้องไม่ก่อนวันเริ่ม');
-      if (dayCount(rec) > MAX_DAYS) throw new UserErr(`จองต่อเนื่องได้สูงสุด ${MAX_DAYS} วัน (ประมาณ 6 เดือน)`);
-      const e = dEnd(rec);
-      if ((!old || old.date !== rec.date || dEnd(old) !== e || old.to !== rec.to) && (e < today() || (e === today() && rec.to && rec.to <= nowHM()))) throw new UserErr('เวลาออกผ่านไปแล้ว เลือกเวลาออกที่ยังไม่ถึง หรือเลือกวันอื่น');
+      if (!isRep(rec) && dayCount(rec) > MAX_DAYS) throw new UserErr(`จองต่อเนื่องได้สูงสุด ${MAX_DAYS} วัน (ประมาณ 6 เดือน)`);
+      const e = lastDay(rec);
+      if ((!old || old.date !== rec.date || lastDay(old) !== e || old.to !== rec.to) && (e < today() || (e === today() && rec.to && rec.to <= nowHM()))) throw new UserErr('เวลาออกผ่านไปแล้ว เลือกเวลาออกที่ยังไม่ถึง หรือเลือกวันอื่น');
       if (old) touch(rec, old.zone !== rec.zone || old.slot !== rec.slot ? `แก้ไข/ย้ายไป ${zoneName(rec.zone)} ${rec.slot || ''}`.trim() : 'แก้ไขข้อมูล'); else stamp(rec, 'สร้างการจอง');
       await saveTemp(rec, old);
       done(rec, 'temp', old ? 'บันทึกการแก้ไขแล้ว' : 'บันทึกการจองแล้ว');
@@ -869,7 +881,7 @@ function renderToday() {
   const zones = db.zones.filter(z => list.some(t => t.zone === z.id));
   // สรุปจำนวนรถต่อสถานที่ (สำหรับแคปหน้าจอส่ง รปภ.)
   const one = zones.length === 1;
-  const tbl = zones.map(z => { const rows = active.filter(t => t.zone === z.id); return `${one ? '' : `<tr class="ds-zone"><th colspan="4">${esc(z.name)} <small>${rows.length} คัน</small></th></tr>`}${rows.map((t, i) => `<tr><td class="nw">${i + 1}.</td><td class="nw"><b>${esc(t.plate)}</b></td><td>${esc(t.name)}${t.slot ? ` <small>ช่อง ${esc(t.slot)}</small>` : ''}${isMulti(t) ? ` <small>(ถึง ${fmtDate(dEnd(t))})</small>` : ''}</td><td class="nw">${esc(t.from)}–${esc(t.to)}</td></tr>`).join('')}`; }).join('');
+  const tbl = zones.map(z => { const rows = active.filter(t => t.zone === z.id); return `${one ? '' : `<tr class="ds-zone"><th colspan="4">${esc(z.name)} <small>${rows.length} คัน</small></th></tr>`}${rows.map((t, i) => `<tr><td class="nw">${i + 1}.</td><td class="nw"><b>${esc(t.plate)}</b></td><td>${esc(t.name)}${t.slot ? ` <small>ช่อง ${esc(t.slot)}</small>` : ''}${isRep(t) ? ` <small>(${esc(repBadge(t))})</small>` : isMulti(t) ? ` <small>(ถึง ${fmtDate(dEnd(t))})</small>` : ''}</td><td class="nw">${esc(t.from)}–${esc(t.to)}</td></tr>`).join('')}`; }).join('');
   const sum = `<div class="day-sum"><div class="day-sum-h"><b>รถขอเข้าจอด ${esc(zLabel)}</b><span>${fDL.format(toD(d))}</span></div>
     <div class="day-sum-g">${one ? '' : zones.map(z => { const n = active.filter(t => t.zone === z.id).length; return `<div class="ds"><b>${n}</b><span>${esc(z.name)}${z.free ? ` <small>/ จุ ${capOf(z)} คัน</small>` : ''}</span></div>`; }).join('')}
     <div class="ds tot"><b>${active.length}</b><span>${one ? `คัน ที่${esc(zLabel)}${zones[0].free ? ` <small>(จุ ${capOf(zones[0])} คัน)</small>` : ''}` : 'รวมทุกสถานที่ (คัน)'}${d === today() && nowN ? ` <small>จอดอยู่ตอนนี้ ${nowN}</small>` : ''}</span></div></div>
@@ -881,7 +893,7 @@ function renderToday() {
     return `<div class="zone-block"><h3>${esc(z.name)} <small>${rows.filter(t => !t.cancelled).length} คัน</small></h3>${rows.map(t => {
       const st = dayStatus(t, d);
       return `<div class="req ${st}"><div class="req-time">${esc(t.from)}<br><span class="muted" style="font-size:.85em">ถึง ${esc(t.to)}</span></div>
-        <div><div class="req-name">${esc(t.name)} <span class="status st-${st}">${ST_TXT[st]}</span>${isMulti(t) ? ` <span class="status st-multi">จองต่อเนื่อง ถึง ${fmtDate(dEnd(t))}</span>` : ''}</div>
+        <div><div class="req-name">${esc(t.name)} <span class="status st-${st}">${ST_TXT[st]}</span>${isRep(t) ? ` <span class="status st-multi st-rep">${repBadge(t)}</span>` : isMulti(t) ? ` <span class="status st-multi">จองต่อเนื่อง ถึง ${fmtDate(dEnd(t))}</span>` : ''}</div>
         <div class="req-sub">${esc(t.kind || '')} ทะเบียน <b>${esc(t.plate)}</b> ${z.free ? 'จอดอิสระ' : t.slot ? 'ช่อง ' + esc(t.slot) : 'ยังไม่ระบุช่อง'}${t.note ? '<br>' + esc(t.note) : ''}</div>
         <div class="req-sub noprint">บันทึกโดย ${esc(t.createdBy || '—')} ${fmtTs(t.createdAt)}</div></div>
         <div class="req-act noprint"><button class="link" data-act="goto-temp" data-id="${esc(t.id)}">ดูในผัง</button><button class="link" data-act="edit-temp" data-id="${esc(t.id)}">แก้ไข</button>${isLive(t) ? `<button class="link" data-act="cancel-temp" data-id="${esc(t.id)}">ยกเลิก</button>` : ''}<button class="link danger" data-act="del-temp" data-id="${esc(t.id)}">ลบ</button></div></div>`;
@@ -895,7 +907,7 @@ function todayText() {   // ข้อความสรุปสำหรับ�
   db.zones.filter(z => list.some(t => t.zone === z.id)).forEach(z => {
     const rows = list.filter(t => t.zone === z.id);
     out.push('', `■ ${z.name} ${rows.length} คัน`);
-    rows.forEach((t, i) => out.push(`${i + 1}. ${t.plate}  ${t.name}  ${t.from}–${t.to}${t.slot ? '  ช่อง ' + t.slot : ''}${isMulti(t) ? '  (ถึง ' + fmtDate(dEnd(t)) + ')' : ''}`));
+    rows.forEach((t, i) => out.push(`${i + 1}. ${t.plate}  ${t.name}  ${t.from}–${t.to}${t.slot ? '  ช่อง ' + t.slot : ''}${isRep(t) ? '  (' + repBadge(t) + ')' : isMulti(t) ? '  (ถึง ' + fmtDate(dEnd(t)) + ')' : ''}`));
   });
   return out.join('\n');
 }
@@ -1511,7 +1523,7 @@ function renderData() {
     const rows = dataRowsTemp(q, fz, fs_);
     $('dCount').textContent = `${rows.length} รายการ`;
     $('dTable').innerHTML = `<thead><tr><th>วันที่</th><th>เวลา</th><th>ชื่อ / บริษัท</th><th>ทะเบียน</th><th>สถานที่</th><th>ช่อง</th><th>สถานะ</th><th>บันทึกโดย</th><th></th></tr></thead><tbody>` +
-      (rows.slice(0, 500).map(t => { const st = tStatus(t); return `<tr class="${st === 'expired' ? 'off' : ''}"><td class="nw">${fmtDate(t.date)}${isMulti(t) ? `<div class="sub">ถึง ${fmtDate(dEnd(t))} (${dayCount(t)} วัน)</div>` : ''}</td><td class="nw">${esc(t.from)}–${esc(t.to)}</td><td><b>${esc(t.name)}</b><div class="sub">${esc(t.kind || '')}${t.note ? ' / ' + esc(t.note) : ''}</div></td><td class="nw">${esc(t.plate)}</td><td>${esc(zoneName(t.zone))}</td><td class="nw">${esc(t.slot || '—')}</td>
+      (rows.slice(0, 500).map(t => { const st = tStatus(t); return `<tr class="${st === 'expired' ? 'off' : ''}"><td class="nw">${fmtDate(t.date)}${isRep(t) ? `<div class="sub">${repBadge(t)}</div>` : isMulti(t) ? `<div class="sub">ถึง ${fmtDate(dEnd(t))} (${dayCount(t)} วัน)</div>` : ''}</td><td class="nw">${esc(t.from)}–${esc(t.to)}</td><td><b>${esc(t.name)}</b><div class="sub">${esc(t.kind || '')}${t.note ? ' / ' + esc(t.note) : ''}</div></td><td class="nw">${esc(t.plate)}</td><td>${esc(zoneName(t.zone))}</td><td class="nw">${esc(t.slot || '—')}</td>
         <td class="keep"><span class="status st-${st}">${ST_TXT[st]}</span></td><td class="keep sub">${esc(t.createdBy || '—')}<br>${fmtTs(t.createdAt)}</td>
         <td class="keep nw"><button class="link" data-act="goto-temp" data-id="${esc(t.id)}">ดูในผัง</button><button class="link" data-act="edit-temp" data-id="${esc(t.id)}">แก้ไข</button>${isLive(t) ? `<button class="link" data-act="cancel-temp" data-id="${esc(t.id)}">ยกเลิก</button>` : ''}<button class="link" data-act="hist" data-kind="temp" data-id="${esc(t.id)}">ประวัติ</button><button class="link danger" data-act="del-temp" data-id="${esc(t.id)}">ลบ</button></td></tr>`; }).join('')
         || '<tr><td colspan="9" class="muted" style="text-align:center;padding:28px">ไม่มีรายการตามตัวกรองนี้</td></tr>') + (rows.length > 500 ? `<tr><td colspan="9" class="muted">แสดง 500 จาก ${rows.length} รายการ ใช้ตัวกรองหรือส่งออก CSV เพื่อดูทั้งหมด</td></tr>` : '') + '</tbody>';
@@ -1551,7 +1563,7 @@ function exportData() {
   if (S.dtab === 'perm') download(`ช่องประจำ-${today()}.csv`, toCSV([['ชื่อ-นามสกุล', 'รหัสพนักงาน', 'ทะเบียนรถ', 'แผนก', 'ฝ่าย', 'สถานที่', 'หมายเลขช่อง', 'สถานะ', 'แก้ไขล่าสุด', 'แก้ไขโดย']]
     .concat(dataRowsPerm(q, fz, f).map(p => [p.name, p.empId, p.plate, p.dept, p.division, zoneName(p.zone), p.slot, p.active ? 'ใช้งานอยู่' : 'คืนช่องแล้ว', fmtTs(p.updatedAt), p.updatedBy || '']))), 'text/csv;charset=utf-8');
   else download(`จองชั่วคราว-${today()}.csv`, toCSV([['วันที่เริ่ม', 'ถึงวันที่', 'เวลาเข้า', 'เวลาออก', 'ชื่อ/บริษัท', 'ทะเบียนรถ', 'สถานที่', 'ช่อง', 'ประเภท', 'หมายเหตุ', 'สถานะ', 'บันทึกโดย', 'บันทึกเมื่อ']]
-    .concat(dataRowsTemp(q, fz, f).map(t => [dmy(t.date), dmy(dEnd(t)), t.from, t.to, t.name, t.plate, zoneName(t.zone), t.slot, t.kind, t.note, ST_TXT[tStatus(t)], t.createdBy || '', fmtTs(t.createdAt)]))), 'text/csv;charset=utf-8');
+    .concat(dataRowsTemp(q, fz, f).map(t => [dmy(t.date), isOpen(t) ? 'ไม่กำหนด' : dmy(dEnd(t)), t.from, t.to, t.name, t.plate, zoneName(t.zone), t.slot, t.kind, [isRep(t) ? wdTxt(t) : '', t.note].filter(Boolean).join(' / '), ST_TXT[tStatus(t)], t.createdBy || '', fmtTs(t.createdAt)]))), 'text/csv;charset=utf-8');
 }
 function exportSum() {
   const R = +$('sRange').value || 30, d0 = addDays(today(), -(R - 1)), tl = rangeTemps(R), rows = [['วันที่', 'สถานที่', 'ประเภทผู้จอด', 'จำนวนคำขอ']], m = new Map();
@@ -1704,7 +1716,9 @@ async function act(b) {
     case 'new-temp': return openSheet({ type: 'temp', zone: S.tab === 'today' && S.tZone ? S.tZone : undefined, date: S.tab === 'today' ? S.tDate : S.vDate, from: S.tab === 'today' ? '08:00' : S.vFrom, to: S.tab === 'today' ? '17:00' : S.vTo });
     case 'new-perm-or-temp': if (S.dtab === 'chk') { S.cDate = today(); S.cSlot = null; return showTab('chk'); } return S.dtab === 'perm' ? openSheet({ type: 'perm' }) : openSheet({ type: 'temp', date: today(), from: '08:00', to: '17:00' });
     case 'close-sheet': return closeSheet();
-    case 'dpick': { const d0 = $('bDate').value || today(); $('bDateTo').value = b.dataset.d === '0' ? '' : dpickTo(b, d0); return refreshSheetSlots(); }
+    case 'dpick': { const d0 = $('bDate').value || today(); $('bDateTo').value = b.dataset.d === '0' ? '' : dpickTo(b, d0); if (b.dataset.d === '0') sheetWd = []; return refreshSheetSlots(); }
+    case 'wpick': { const w = +b.dataset.w; sheetWd = sheetWd.includes(w) ? sheetWd.filter(x => x !== w) : sheetWd.concat(w); return refreshSheetSlots(); }
+    case 'wclear': { sheetWd = []; return refreshSheetSlots(); }
     case 'copy-today': { const txt = todayText(); try { await navigator.clipboard.writeText(txt); toast('คัดลอกแล้ว วางใน LINE ส่ง รปภ. ได้เลย'); } catch (e) { openDialog({ title: 'คัดลอกข้อความ', body: `<textarea readonly style="width:100%;min-height:240px;font:inherit">${esc(txt)}</textarea>`, buttons: [{ label: 'ปิด', value: true, cls: 'pri' }] }); } return; }
     case 'tpick': {   // เลือกช่วงเวลาที่ขอใช้แบบเร็ว
       let f = b.dataset.f, t = b.dataset.t;
