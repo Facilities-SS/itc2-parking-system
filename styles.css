@@ -793,3 +793,23 @@ svg.car.perm{color:#2D6FD6} svg.car.temp{color:#F08A1C} .slot.t-vip svg.car.temp
 .wpick button[data-w="0"],.wpick button[data-w="6"]{color:#B4472E}
 .wpick button[aria-pressed="true"]{background:#2D6FD6;border-color:#2D6FD6;color:#fff}
 .status.st-rep{background:#E8F0FD;color:#1F57B0;border-color:#B9CFF3}
+
+/* ช่องประจำ: กำหนดการล่วงหน้า */
+.psched{border:1.5px solid #D5DAE1;border-radius:12px;padding:12px 14px;background:#F7F9FB}
+.psched .grid2{margin-top:6px}
+.psched-tip{align-self:end;margin:0 0 8px;font-size:.85rem;line-height:1.45}
+.pnote{margin-top:10px;font-size:.88rem;color:#1F57B0;background:#EAF1FD;border-radius:8px;padding:8px 10px;line-height:1.5}
+.pnote.err{color:#B3261E;background:#FDECEA}
+.plan-box{margin:14px 0 6px;border:1.5px solid #F2C38F;background:#FFF8F0;border-radius:12px;padding:12px 14px;font-size:.95rem}
+.plan-box h4{margin:0 0 6px;font-size:1rem;color:#9A4A12}
+.plan-box ul{margin:0;padding-left:18px}.plan-box li{margin:4px 0;line-height:1.45}
+.stage .slot .pbadge{position:absolute;left:50%;bottom:3px;transform:translateX(-50%) translateZ(12px);z-index:6;white-space:nowrap;font:700 10.5px/1 inherit;font-family:inherit;padding:3px 6px;border-radius:6px;box-shadow:0 2px 5px rgba(0,0,0,.3);pointer-events:none}
+.stage .slot.lay.f-d .pbadge{bottom:auto;top:3px}
+.stage .slot .pbadge.out{background:#FFF1E6;color:#B4471A;border:1.5px solid #F08A1C}
+.stage .slot .pbadge.mv{background:#EAF1FD;color:#1F57B0;border:1.5px solid #2D6FD6}
+.stage.notags .pbadge{display:none}
+.stage .slot.lay.f-r .pbadge{left:auto;right:calc(100% + 4px);top:50%;bottom:auto;transform:translateY(-50%) translateZ(12px)}
+.stage .slot.lay.f-l .pbadge{left:calc(100% + 4px);top:50%;bottom:auto;transform:translateY(-50%) translateZ(12px)}
+.stage .slot.lay.f-u .pbadge{top:calc(100% + 3px);bottom:auto}
+.stage .slot.lay.f-r .pbadge{left:calc(100% - 24px);right:auto;top:calc(50% + 11px);transform:translateZ(12px)}
+.stage .slot.lay.f-l .pbadge{left:auto;right:calc(100% - 24px);top:calc(50% + 11px);transform:translateZ(12px)}

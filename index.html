@@ -234,6 +234,13 @@
       <label class="f g-perm"><span>แผนก</span><input id="bDept" maxlength="60"></label>
       <label class="f g-perm"><span>ฝ่าย</span><input id="bDiv" maxlength="60"></label>
       <label class="f" id="bSlotWrap"><span>หมายเลขช่อง</span><select id="bSlot"></select></label>
+      <div class="f span2 g-perm psched"><span>กำหนดการล่วงหน้า <small class="muted">(ไม่ใส่ก็ได้ ถึงวันแล้วระบบเปลี่ยนให้เอง ไม่ต้องกลับมากด)</small></span>
+        <div class="grid2">
+          <label class="f"><span>วันสุดท้ายที่ใช้ช่อง</span><input id="bEnd" type="date"></label>
+          <p class="muted psched-tip">เลยวันนี้แล้วคืนช่องอัตโนมัติ (ลาออก / หมดสิทธิ์)<br>เว้นว่าง = ใช้ไปเรื่อยๆ</p>
+          <label class="f"><span>ย้ายไปช่อง</span><select id="bMoveSlot"></select></label>
+          <label class="f"><span>ตั้งแต่วันที่</span><input id="bMoveDate" type="date"></label>
+        </div><div class="pnote" id="bPlanNote" hidden></div></div>
       <label class="f span2" id="bByWrap" hidden><span>ชื่อ รปภ. ผู้บันทึก <small class="muted">(จำเป็น)</small></span><input id="bBy" maxlength="40" autocomplete="off" list="bByList" placeholder="ชื่อ-นามสกุล ผู้บันทึก"><datalist id="bByList"></datalist></label>
       <label class="f span2 g-temp"><span>ผู้ติดต่อในแผนก / หมายเหตุ</span><input id="bNote" maxlength="120" placeholder="เช่น มาพบคุณสมชาย ฝ่ายวิศวกรรม"></label>
     </div>
