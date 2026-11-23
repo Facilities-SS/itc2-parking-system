@@ -823,3 +823,10 @@ svg.car.perm{color:#2D6FD6} svg.car.temp{color:#F08A1C} .slot.t-vip svg.car.temp
 @media (max-width:1100px){
   #tab-map #panel{position:fixed;top:auto;left:8px;right:8px;bottom:8px;width:auto;max-height:62vh;z-index:60;border-radius:16px}
 }
+
+/* ชื่อบนป้าย: คำนำหน้า + ชื่อ ไม่ตัดกลางคำ */
+.stage .slot .tag .tp{font-style:normal;font-weight:inherit}
+.stage .slot .tag .tnn{font-weight:inherit}
+.stage .slot.lay.f-d .tag .tnm,.stage .slot.lay.f-u .tag .tnm{display:flex!important;flex-direction:column;align-items:center;-webkit-line-clamp:unset!important;white-space:nowrap!important;width:100%;overflow:hidden;line-height:1.18}
+.stage .slot.lay.f-d .tag .tnm>*,.stage .slot.lay.f-u .tag .tnm>*{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stage .slot.lay.f-d .tag .tp,.stage .slot.lay.f-u .tag .tp{font-size:.88em;opacity:.75}

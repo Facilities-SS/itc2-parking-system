@@ -670,6 +670,11 @@ function lotHtml(z, o) {
   if (rows.length % 2 === 0) h += `<div class="lane"></div>`;   // แถวสุดท้ายหันออกทางถนนด้านล่าง
   return { html: h };
 }
+const TITLE_RE = /^(คุณ|K\.|ดร\.|ผศ\.|รศ\.|ศ\.|Dr\.?|Mr\.?|Ms\.?|Mrs\.?)\s*(.+)$/;
+function tagName(n) {   // แยกคำนำหน้ากับชื่อ: ป้ายแนวตั้งขึ้นคนละบรรทัด ไม่ให้ชื่อขาดกลางคำ
+  const k = khun(firstName(n)), m = k.match(TITLE_RE);
+  return m ? `<i class="tp">${esc(m[1])}</i><b class="tnn">${esc(short(m[2], 13))}</b>` : `<b class="tnn">${esc(short(k, 15))}</b>`;
+}
 function slotPlan(z, sl, d) {   // กำหนดการล่วงหน้าของช่อง นับจากวันที่ดู
   if (!z || z.free || !sl) return [];
   const k = normSlot(sl), out = [], P = db.permanent.filter(p => p.active && p.zone === z.id);
@@ -695,7 +700,7 @@ function slotHtml(z, c, pos) {
   const cls = ['slot', pos ? pos.cls : '', tg ? 't-' + tg : '', c.open ? 'open' : '', c.perm ? 'perm' : c.temp ? 'temp' : 'free', c.later && c.later.length && !c.perm && !c.temp ? 'later' : '', sel ? 'sel' : '', hl ? 'hl' : ''].filter(Boolean).join(' ');
   const pop = (c.temp && c.temp.id === S.pop) || (c.perm && c.perm.id === S.pop) ? ' pop' : '';
   let inner = `<span class="num">${esc(c.slot || '')}</span>${tg ? `<span class="stag">${tg === 'vip' ? 'VIP' : 'ผบ.'}</span>` : ''}`, label;
-  if (c.perm) { inner += `<svg class="car perm${pop}" viewBox="0 0 40 72" aria-hidden="true"><use href="#car"/></svg><span class="tag">${c.slot ? `<i class="tn">${esc(c.slot)}</i>` : ''}<span class="tnm">${esc(short(khun(firstName(c.perm.name)), 15))}</span><small>${esc(c.perm.plate)}</small></span>`; label = `ช่อง ${c.slot} ระยะยาว ${c.perm.name} ทะเบียน ${c.perm.plate}`; }
+  if (c.perm) { inner += `<svg class="car perm${pop}" viewBox="0 0 40 72" aria-hidden="true"><use href="#car"/></svg><span class="tag">${c.slot ? `<i class="tn">${esc(c.slot)}</i>` : ''}<span class="tnm">${tagName(c.perm.name)}</span><small>${esc(c.perm.plate)}</small></span>`; label = `ช่อง ${c.slot} ระยะยาว ${c.perm.name} ทะเบียน ${c.perm.plate}`; }
   else if (c.temp) { inner += `<svg class="car temp${pop}" viewBox="0 0 40 72" aria-hidden="true"><use href="#car"/></svg><span class="tag temp">${c.slot ? `<i class="tn">${esc(c.slot)}</i>` : ''}<span class="tnm">${esc(short(firstName(c.temp.name), 12))}</span><small>${esc(c.temp.from)}–${esc(c.temp.to)}</small></span>`; label = `${c.slot ? 'ช่อง ' + c.slot : 'จอดอิสระ'} ชั่วคราว ${c.temp.name} ${c.temp.from}-${c.temp.to}`; }
   else { if (sel) inner += '<i class="ghost"></i>'; label = `${c.slot ? 'ช่อง ' + c.slot : 'ที่ว่าง'} ว่าง${c.later && c.later.length ? ' มีจองช่วงเวลาอื่น' : ''}`; }
   const data = c.perm ? `data-act="sel-perm" data-id="${esc(c.perm.id)}"` : c.temp ? `data-act="sel-temp" data-id="${esc(c.temp.id)}"` : z.free ? `data-act="sel-open" data-idx="${c.idx}"` : `data-act="sel-slot" data-slot="${esc(c.slot)}"`;
