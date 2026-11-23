@@ -716,7 +716,11 @@ function layoutStage() {
 }
 
 /* ---------- แผงรายละเอียด ---------- */
-function renderPanel(z, o) { renderPanelInner(z, o); guardTrim($('panel')); }
+function renderPanel(z, o) {   // ผังเต็มจอ: แผงรายละเอียดลอยขึ้นเมื่อแตะช่อง/รถ ไม่ได้เลือกก็ซ่อน
+  const p = $('panel'); p.classList.remove('off'); renderPanelInner(z, o);
+  if (!p.classList.contains('off')) p.insertAdjacentHTML('afterbegin', '<button type="button" class="p-close" data-act="p-close" aria-label="ปิด">✕</button>');
+  guardTrim(p);
+}
 function renderPanelInner(z, o) {
   const p = $('panel'), sel = S.sel;
   const win = `${fmtDate(S.vDate)} ${S.vFrom}–${S.vTo} น.`;
@@ -755,17 +759,12 @@ function renderPanelInner(z, o) {
       ${otherList(later, 'มีจองช่องนี้ช่วงเวลาอื่น')}`;
     return;
   }
-  // ยังไม่เลือก: รายชื่อรถที่จอดในผังนี้
-  const people = z.free ? o.items.map(t => ({ k: 'temp', id: t.id, slot: '', name: t.name, plate: t.plate, sub: `${t.from}–${t.to}` }))
-    : o.items.filter(i => i.perm || i.temp).map(i => i.perm ? { k: 'perm', id: i.perm.id, slot: i.slot, name: i.perm.name, plate: i.perm.plate, sub: 'ระยะยาว' } : { k: 'temp', id: i.temp.id, slot: i.slot, name: i.temp.name, plate: i.temp.plate, sub: `${i.temp.from}–${i.temp.to}` });
-  p.innerHTML = `<div class="panel-empty"><h3>เลือกช่องจอด</h3>
-    <ol><li>เลือกวันและเวลาที่ต้องการด้านบน</li><li>แตะช่องสีเขียวที่ว่างในผัง</li><li>กรอกชื่อและทะเบียนรถ แล้วกดบันทึก</li></ol>
-    <p style="margin-top:10px">แตะรถในผังเพื่อดูว่าเป็นของใคร</p></div>
-    <div class="p-list"><h4>รถในผังนี้ ${people.length} คัน</h4>${people.length ? `<ul>${people.slice(0, 60).map(x => `<li><span><b>${esc(x.slot || '—')}</b> ${esc(short(x.name, 18))} <span class="muted">${esc(x.plate)}</span></span><button class="link" data-act="sel-${x.k}" data-id="${esc(x.id)}">ดู</button></li>`).join('')}</ul>` : '<p class="muted">ยังไม่มีรถในช่วงเวลานี้</p>'}</div>`;
+  // ยังไม่เลือก: ซ่อนแผง (ผังเต็มจอ) ดูว่าเป็นของใครให้แตะรถ หรือค้นจากช่องหารถด้านบน
+  p.innerHTML = ''; p.classList.add('off');
 }
 
 function peekPanel() {   // จอเล็ก: เลื่อนให้เห็นรายละเอียดช่องที่เพิ่งแตะ
-  if (window.innerWidth > 1100) return;
+  return;   // แผงลอยอยู่บนผังแล้ว ไม่ต้องเลื่อนหน้า
   const p = $('panel'), r = p.getBoundingClientRect();
   if (r.top > window.innerHeight - 160) window.scrollBy({ top: r.top - window.innerHeight + Math.min(r.height, 300) + 90, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 }
@@ -1768,6 +1767,7 @@ async function act(b) {
   if ((a === 'edit-temp' || a === 'cancel-temp') && !canEditTemp(db.temp.find(x => x.id === id))) return toast('แก้หรือยกเลิกได้เฉพาะรายการที่คุณเพิ่มเอง');
   const z = getZone(S.zone);
   switch (a) {
+    case 'p-close': S.sel = null; return renderMap();
     case 'sel-slot': S.sel = { zone: S.zone, slot: b.dataset.slot }; renderMap(); return peekPanel();
     case 'sel-open': S.sel = { zone: S.zone, idx: +b.dataset.idx }; renderMap(); return peekPanel();
     case 'sel-perm': S.sel = { perm: id }; renderMap(); return peekPanel();

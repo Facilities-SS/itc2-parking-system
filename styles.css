@@ -813,3 +813,13 @@ svg.car.perm{color:#2D6FD6} svg.car.temp{color:#F08A1C} .slot.t-vip svg.car.temp
 .stage .slot.lay.f-u .pbadge{top:calc(100% + 3px);bottom:auto}
 .stage .slot.lay.f-r .pbadge{left:calc(100% - 24px);right:auto;top:calc(50% + 11px);transform:translateZ(12px)}
 .stage .slot.lay.f-l .pbadge{left:auto;right:calc(100% - 24px);top:calc(50% + 11px);transform:translateZ(12px)}
+
+/* ===== ผังเต็มจอ: แผงรายละเอียดลอยบนผัง ===== */
+#tab-map .map-wrap{display:block;position:relative}
+#tab-map #panel{position:absolute;top:52px;right:12px;width:340px;z-index:20;min-height:0;max-height:calc(100% - 64px);overflow:auto;box-shadow:0 14px 36px rgba(16,24,40,.28);padding-top:20px}
+#tab-map #panel.off{display:none}
+.panel .p-close{position:absolute;top:10px;right:10px;width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--paper);font-size:17px;line-height:1;cursor:pointer;color:var(--ink);z-index:2}
+.panel .p-close:hover{background:#F1F4F7}
+@media (max-width:1100px){
+  #tab-map #panel{position:fixed;top:auto;left:8px;right:8px;bottom:8px;width:auto;max-height:62vh;z-index:60;border-radius:16px}
+}
