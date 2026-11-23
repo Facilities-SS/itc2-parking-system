@@ -884,16 +884,31 @@ function refreshSheetSlots() {
   } else $('bHint').textContent = '';
   $('bPicked').innerHTML = z ? `<b>${esc(z.free ? 'P' : (slot || '?'))}</b><span>${esc(z.name)}${z.free ? ' จอดอิสระ' : slot ? '' : ' (ยังไม่เลือกช่อง)'}<br>${perm ? 'ช่องประจำ ทุกวัน' : `${rep ? esc(fmtRange(rg)) : rg.dateTo ? `${fmtDate(date)} – ${fmtDate(rg.dateTo)} (${nd} วัน)` : fmtDate(date)} ${esc(from)}–${esc(to)} น.`}</span>` : '';
 }
+function bumpable(z, id, sl, md) {   // ช่องที่มีคนประจำอยู่ แต่ให้คนเดิมคืนช่องก่อนวันย้ายได้: คืนคนนั้น ไม่งั้น null
+  const d0 = md || addDays(today(), 1), k = normSlot(sl);
+  const segs = permHolders(z.id, null, id).filter(g => normSlot(g.s) === k && g.b >= d0);
+  if (!segs.length || new Set(segs.map(g => g.id)).size !== 1 || segs.some(g => g.a >= d0)) return null;
+  const h = db.permanent.find(p => p.id === segs[0].id);
+  if (!h || hasMove(h) || db.temp.some(t => t.zone === z.id && normSlot(t.slot) === k && isLive(t) && dEnd(t) >= d0)) return null;
+  return h;
+}
 function refreshPlan(z, id, slot) {
   const md = $('bMoveDate').value, end = $('bEnd').value, nm = khun($('bName').value.trim() || 'พนักงาน');
   let ml = z ? permFreeSlots(z, id, md || addDays(today(), 1)).filter(s => normSlot(s) !== normSlot(slot)) : [];
-  if (sheetMove && z && hasSlot(z, sheetMove) && !ml.some(s => normSlot(s) === normSlot(sheetMove))) ml = [sheetMove, ...ml];
-  $('bMoveSlot').innerHTML = '<option value="">ไม่ย้าย</option>' + ml.map(s => `<option value="${esc(s)}">ช่อง ${esc(s)}${md ? ` (ว่างตั้งแต่ ${fmtDate(md)})` : ''}</option>`).join('');
-  $('bMoveSlot').value = ml.find(s => normSlot(s) === normSlot(sheetMove)) || '';
+  const busy = z ? permSlotsOf(z).filter(s => normSlot(s) !== normSlot(slot) && !ml.some(x => normSlot(x) === normSlot(s))).map(s => ({ s, h: bumpable(z, id, s, md) })).filter(x => x.h) : [];
+  if (sheetMove && z && hasSlot(z, sheetMove) && !ml.some(s => normSlot(s) === normSlot(sheetMove)) && !busy.some(x => normSlot(x.s) === normSlot(sheetMove))) ml = [sheetMove, ...ml];
+  const outD = md ? fmtDate(addDays(md, -1)) : 'วันก่อนย้าย';
+  $('bMoveSlot').innerHTML = '<option value="">ไม่ย้าย</option>'
+    + (ml.length ? `<optgroup label="ช่องว่าง">${ml.map(s => `<option value="${esc(s)}">ช่อง ${esc(s)} (ว่าง)</option>`).join('')}</optgroup>` : '')
+    + (busy.length ? `<optgroup label="ช่องที่มีคนจอด (คนเดิมจะคืนช่องให้อัตโนมัติ)">${busy.map(x => `<option value="${esc(x.s)}">ช่อง ${esc(x.s)} · ${esc(khun(x.h.name))} (ใช้ถึง ${outD})</option>`).join('')}</optgroup>` : '');
+  const all = [...ml, ...busy.map(x => x.s)];
+  $('bMoveSlot').value = all.find(s => normSlot(s) === normSlot(sheetMove)) || '';
   const mv = $('bMoveSlot').value, n = $('bPlanNote'), parts = [];
   if (mv && md) parts.push(`${esc(nm)} จอดช่อง ${esc(slot || '?')} ถึง ${fmtDate(addDays(md, -1))} → ย้ายไปช่อง ${esc(mv)} ตั้งแต่ ${fmtDate(md)} · ช่อง ${esc(slot || '?')} ว่างให้คนอื่นตั้งแต่ ${fmtDate(md)}`);
   else if (mv) parts.push('เลือกวันที่ย้ายด้วย');
   else if (md) parts.push('เลือกช่องที่จะย้ายไปด้วย');
+  const bh = mv && z ? bumpable(z, id, mv, md) : null;
+  if (bh && md) parts.push(`${esc(khun(bh.name))} (ช่อง ${esc(mv)} ตอนนี้) จะใช้ช่องได้ถึง ${fmtDate(addDays(md, -1))} แล้วคืนช่องอัตโนมัติ`);
   if (end) parts.push(`ใช้ช่องได้ถึง ${fmtDate(end)} แล้วคืนช่องอัตโนมัติ`);
   const bad = (mv && !md) || (!mv && md) || (mv && md && end && md > end);
   if (mv && md && end && md > end) parts.push('วันที่ย้ายต้องไม่เกินวันสุดท้ายที่ใช้ช่อง');
@@ -916,6 +931,12 @@ async function submitSheet(e) {
       if (mv && md) { if (md <= today()) rec.slot = mv, delete rec.move; else rec.move = { slot: mv, date: md }; } else delete rec.move;
       const plan = [end && `วันสุดท้าย ${fmtDate(end)}`, hasMove(rec) && `ย้ายไปช่อง ${rec.move.slot} ตั้งแต่ ${fmtDate(rec.move.date)}`].filter(Boolean).join(', ');
       if (old) touch(rec, 'แก้ไขข้อมูล' + (plan ? ` (${plan})` : '')); else stamp(rec, 'ลงทะเบียนช่องประจำ' + (plan ? ` (${plan})` : ''));
+      const bz = getZone(rec.zone), bh = hasMove(rec) && bz ? bumpable(bz, rec.id, rec.move.slot, rec.move.date) : null;
+      if (bh) {   // ช่องปลายทางยังมีคนประจำ: ให้คนเดิมใช้ถึงวันก่อนย้ายแล้วคืนช่องเอง
+        const he = addDays(rec.move.date, -1), hr = { ...bh, endDate: bh.endDate && bh.endDate < he ? bh.endDate : he };
+        touch(hr, `กำหนดคืนช่อง ${fmtDate(hr.endDate)} เพราะ ${rec.name} ย้ายมาช่อง ${rec.move.slot}`);
+        await savePerm(hr, bh);
+      }
       await savePerm(rec, old);
       done(rec, 'perm', old ? 'บันทึกการแก้ไขแล้ว' : 'ลงทะเบียนช่องประจำแล้ว');
     } else {
