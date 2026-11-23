@@ -830,3 +830,11 @@ svg.car.perm{color:#2D6FD6} svg.car.temp{color:#F08A1C} .slot.t-vip svg.car.temp
 .stage .slot.lay.f-d .tag .tnm,.stage .slot.lay.f-u .tag .tnm{display:flex!important;flex-direction:column;align-items:center;-webkit-line-clamp:unset!important;white-space:nowrap!important;width:100%;overflow:hidden;line-height:1.18}
 .stage .slot.lay.f-d .tag .tnm>*,.stage .slot.lay.f-u .tag .tnm>*{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stage .slot.lay.f-d .tag .tp,.stage .slot.lay.f-u .tag .tp{font-size:.88em;opacity:.75}
+
+/* ป้ายช่องเฉพาะแผนก */
+.stage .slot .slbl{position:absolute;left:50%;top:4px;transform:translateX(-50%) translateZ(11px);z-index:5;max-width:calc(100% - 4px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9.5px;font-weight:700;line-height:1;padding:3px 5px;border-radius:5px;background:#6B4FC8;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35);pointer-events:none}
+.stage .slot.lay.f-u .slbl{top:auto;bottom:4px}
+.stage .slot.lay.o-h .slbl{left:4px;transform:translateZ(11px)}
+.plbl{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:999px;background:#EEE9FB;color:#5137B0;font-weight:700;font-size:.85rem;vertical-align:1px}
+.ckp .c-no small,.c-no small{display:block}
+.stage .slot .slbl{white-space:normal;text-align:center;width:max-content;max-width:calc(100% + 4px);line-height:1.12;padding:3px 4px;overflow:visible;text-overflow:clip;word-break:keep-all}
