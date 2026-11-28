@@ -486,6 +486,7 @@ function renderMap() {
   const o = occupancy(z, S.vDate, S.vFrom, S.vTo), free = o.cap - o.used;
   $('zoneStat').innerHTML = `<span><b>${o.cap}</b>${z.free ? 'คัน' : 'ช่อง'}</span>${z.free ? '' : `<span><b style="color:var(--sign)">${o.perm}</b>ระยะยาว</span>`}<span><b style="color:var(--mark-ink)">${o.tmp}</b>ชั่วคราว</span><span><b style="color:${free < 0 ? 'var(--stop)' : 'var(--go)'}">${free < 0 ? 'เกิน ' + -free : free}</b>ว่าง</span>${z.free ? '<span class="muted">จอดอิสระ ไม่มีเลขช่อง</span>' : ''}${z.note ? `<span class="muted">${esc(z.note)}</span>` : ''}`;
   $('viewToggle').textContent = S.view3d ? 'มุมมอง 3 มิติ' : 'มุมมองแผนผัง'; $('viewToggle').setAttribute('aria-pressed', S.view3d);
+  { const mw = document.querySelector('#tab-map .map-wrap'); if (mw) mw.classList.toggle('has-panel', !!S.sel); }
   const sx = $('stage').scrollLeft;
   $('stage').className = 'stage ' + (S.view3d ? 'v3d' : 'v2d');
   const lh = lotHtml(z, o);
@@ -507,7 +508,7 @@ const UNIT = 56, SW = 1, SL = 1.72;   // ช่องแนวตั้ง ก�
 const rng = (a, b) => { const o = []; if (a <= b) for (let i = a; i <= b; i++) o.push(String(i)); else for (let i = a; i >= b; i--) o.push(String(i)); return o; };
 const roofOf = (b, n) => b.o === 'v' ? { t: 'roof', x: b.x - .12, y: b.y - .12, w: n * SW + .24, h: SL + .24 } : { t: 'roof', x: b.x - .12, y: b.y - .12, w: SL + .24, h: n * SW + .24 };
 const PRESETS = {
-  pilot: () => {   // ผังกระชับ: คงตำแหน่งแถวตามแบบฟอร์ม แต่ลดพื้นที่ว่าง
+  pilot: () => { const r = (() => {   // ผังกระชับ: คงตำแหน่งแถวตามแบบฟอร์ม แต่ลดพื้นที่ว่าง
     const blocks = [
       { x: 1.0, y: 4.2, o: 'h', f: 'r', slots: rng(1, 11) }, { x: 4.9, y: 4.2, o: 'h', f: 'r', slots: rng(12, 20) }, { x: 8.8, y: 4.2, o: 'h', f: 'r', slots: rng(21, 26) },
       { x: 4.9, y: 1.8, o: 'v', f: 'd', slots: rng(43, 45) }, { x: 11.2, y: 1.8, o: 'v', f: 'd', slots: rng(35, 39) },
@@ -515,11 +516,14 @@ const PRESETS = {
     return { name: 'PILOT PLANT', slots: rng(1, 45), tags: { 1: 'vip', 2: 'vip', 3: 'vip', 4: 'vip', 5: 'exec', 6: 'exec' }, note: 'ลานจอดหลังอาคาร Pilot Plant',
       layout: { w: 18.4, h: 15.6, blocks, deco: [{ t: 'bldg', x: 3.8, y: 0, w: 12.8, h: 1.3, label: 'อาคาร PILOT PLANT' }, { t: 'gate', x: 0, y: 0.4, w: .6, h: 3.4, label: 'ทางเข้า-ออก' },
         ...blocks.map(b => roofOf(b, b.slots.length))] } };
+    })();
+    return r;
   },
   waste: () => {
-    const blocks = [{ x: .5, y: .4, o: 'v', f: 'd', slots: rng(17, 1) }];
+    const blocks = [{ x: .5, y: 2.3, o: 'v', f: 'd', slots: rng(17, 1) }];
     return { name: 'บ่อบำบัดน้ำเสีย', slots: rng(1, 17), tags: {}, note: 'ข้างอาคารบำบัดน้ำเสีย TUM3',
-      layout: { w: 18, h: 6.4, blocks, deco: [{ t: 'bldg', x: .5, y: 4.7, w: 17, h: 1.5, label: 'อาคาร FISH OIL' }, ...blocks.map(b => roofOf(b, b.slots.length))] } };
+      layout: { w: 18, h: 8.6, blocks, deco: [{ t: 'fx', cls: 'pond', x: 0, y: 0, w: 18, h: 1.7, label: 'บ่อบำบัดน้ำเสีย' }, { t: 'fx', cls: 'wallh', x: 0, y: 1.7, w: 18, h: .18 },
+        { t: 'fx', cls: 'road', x: 0, y: 5.0, w: 18, h: 1.3 }, { t: 'bldg', x: 0, y: 6.6, w: 18, h: 2.0, label: 'อาคาร FISH OIL' }, ...blocks.map(b => roofOf(b, b.slots.length))] } };
   }
 };
 const presetKey = z => z.id === 'z-pilot-plant' || /pilot/i.test(z.name) ? 'pilot' : z.id === 'z-wastewater' || /บ่อบำบัด/.test(z.name) ? 'waste' : '';
@@ -535,6 +539,7 @@ function customLot(z, cellOf) {   // คืน {html, w, h} หน่วยพ�
   (L.deco || []).forEach(d => {
     if (d.t === 'roof') roofs += `<div class="deco roof" style="${box(d.x, d.y, d.w, d.h)}"></div>`;
     else if (d.t === 'label') deco += `<div class="deco label" style="left:${px(d.x)};top:${px(d.y)}">${esc(d.text)}</div>`;
+    else if (d.t === 'fx') deco += `<div class="deco fx ${d.cls}" style="${box(d.x, d.y, d.w, d.h)}"><span>${esc(d.label || '')}</span></div>`;
     else deco += `<div class="deco ${d.t === 'gate' ? 'gate' : 'bldg'}" style="${box(d.x, d.y, d.w, d.h)}"><span>${esc(d.label || '')}</span></div>`;
   });
   return { html: deco + slotsH + roofs, w: L.w * UNIT, h: H * UNIT };
@@ -592,11 +597,11 @@ function renderSite() {
     <path class="yard" d="M-6 60 H124 V290 H-6 Z"/><path class="yard" d="M-6 290 L8 298 L100 500 L232 504 V593 H288 V674 H1082 V58 H-6 Z"/><rect class="yard" x="-10" y="-170" width="994" height="194"/>
     <rect class="outside" x="-10" y="702" width="1310" height="178"/><rect x="-10" y="702" width="1310" height="178" fill="url(#spOut)"/>
     <path class="water-bk" d="M-10 400 C 30 500, 75 600, 122 710 S 150 820, 160 880"/><path class="water-b" d="M-10 400 C 30 500, 75 600, 122 710 S 150 820, 160 880"/><path class="water" d="M-10 400 C 30 500, 75 600, 122 710 S 150 820, 160 880"/>
-    ${RD(-10, 22, 1116, 26)}${RD(-10, 678, 1310, 24)}${RD(1086, -230, 20, 252)}${RD(126, 48, 20, 244)}${RD(450, 48, 36, 544)}${RD(664, 48, 28, 580)}${RD(1086, 48, 20, 630)}${RD(146, 262, 144, 22)}${RD(246, 284, 42, 394)}
-    ${CL(-10, 35, 1104, 35)}${CL(-10, 690, 1300, 690)}${CL(1096, -228, 1096, 676)}${CL(468, 52, 468, 588)}${CL(678, 52, 678, 624)}${CL(267, 290, 267, 672)}
+    ${RD(62, 22, 1044, 26)}${RD(-10, 678, 1310, 24)}${RD(1086, -230, 20, 252)}${RD(126, 48, 20, 244)}${RD(450, 48, 36, 544)}${RD(664, 48, 28, 626)}${RD(1086, 48, 20, 630)}${RD(146, 262, 144, 22)}${RD(246, 284, 42, 394)}
+    ${CL(66, 35, 1104, 35)}${CL(-10, 690, 1300, 690)}${CL(1096, -228, 1096, 676)}${CL(468, 52, 468, 588)}${CL(678, 52, 678, 670)}${CL(267, 290, 267, 672)}${CL(136, 52, 136, 262)}${CL(150, 273, 286, 273)}
     ${TROW(-2, 520, 60, 640, 4, 10)}${TROW(1120, -200, 1120, 640, 13, 11)}${TROW(10, -205, 960, -205, 22, 9)}${TROW(440, 740, 580, 740, 4, 11)}${TROW(440, 800, 580, 800, 4, 11)}${TROW(190, 870, 400, 870, 6, 8)}
     <g filter="url(#spSh)">
-      ${B(-4, -112, 64, 110, '', { flat: 1 })}${B(68, -150, 84, 96)}${B(68, -44, 84, 54, '', { units: [[8, 10, 14, 10], [30, 10, 14, 10]] })}${B(160, -150, 262, 160, '', { units: [[20, 18, 24, 16], [60, 18, 24, 16], [200, 110, 34, 26]] })}${B(500, -150, 158, 162, '', { v: 1, units: [[16, 120, 26, 18]] })}${B(696, -160, 184, 36)}
+      ${B(-4, -48, 64, 98, '', { flat: 1 })}${B(68, -150, 84, 96)}${B(68, -44, 84, 54, '', { units: [[8, 10, 14, 10], [30, 10, 14, 10]] })}${B(160, -150, 262, 160, '', { units: [[20, 18, 24, 16], [60, 18, 24, 16], [200, 110, 34, 26]] })}${B(500, -150, 158, 162, '', { v: 1, units: [[16, 120, 26, 18]] })}${B(696, -160, 184, 36)}
       <rect class="pond-r" x="696" y="-118" width="184" height="130" rx="3"/>
       ${B(888, -160, 86, 150, 'bins', { flat: 1 })}${B(-4, 60, 124, 230, '', { units: [[14, 20, 20, 14], [14, 190, 20, 14]] })}
       <path class="bd-r rv" d="M150 60 H445 V588 H292 V255 H150 Z"/><path class="bd-e" d="M153 63 H442 V585 H295 V252 H153 Z"/><line class="ridge" x1="368" y1="64" x2="368" y2="584"/><line class="ridge" x1="152" y1="158" x2="292" y2="158"/>
@@ -613,17 +618,17 @@ function renderSite() {
     ${[[903, -146], [933, -146], [903, -116], [933, -116], [903, -86], [933, -86], [903, -56], [933, -56]].map(([x, y]) => `<circle class="drum" cx="${x + 8}" cy="${y + 8}" r="10"/>`).join('')}
     <rect class="plot" x="160" y="708" width="420" height="150" rx="3"/>
     ${lots}
-    ${WALL('M-10 -180 H984 V -3 H1082')}${WALL('M1082 58 V674 H288 V593')}${WALL('M1000 58 H1082')}${WALL('M-6 60 H124 V290 H-6 Z')}${WALL('M-6 290 L8 298 L100 500 L232 504 V593')}
+    ${WALL('M-10 -180 H984 V -3 H1082')}${WALL('M1082 58 V674 H288 V593')}${WALL('M1000 58 H1082')}${WALL('M-6 60 H124 V290 H-6 Z')}${WALL('M-6 290 L8 298 L100 500 L232 504 V593')}${WALL('M232 593 V676')}
     ${GATE(232, 593, 288, 593)}${GATE(1000, -3, 1000, 58)}<rect class="bd-r post" x="988" y="18" width="24" height="34" rx="3"/>
     ${L(291, -66, 'บอยเลอร์', 'lg')}${L(579, -66, 'อาคาร FISH OIL', 'sm')}${L(579, -48, '(ฟิชออย)', 'xs')}${L(788, -142, 'รถยก', 'sm')}${L(788, 22, 'สิ่งแวดล้อม (บ่อบำบัด TUM3)', 'xs')}${L(931, 6, 'ถังปลา', 'xs')}
     ${L(110, -112, 'โกดังเก็บ', 'xs')}${L(110, -96, 'เครื่องจักร', 'xs')}${L(110, -17, 'อาคารสโมค', 'xs')}
     ${L(58, 180, 'หอพัก', 'lg')}${L(296, 120, 'อาคารผลิต 2.1', 'xl')}${L(575, 330, 'อาคารผลิต 2.2', 'xl')}
     ${L(195, 378, 'อาคาร', 'sm')}${L(195, 396, 'PILOT PLANT', 'sm')}${L(860, 104, 'ห้องเย็น', 'xl')}${L(832, 413, 'WH', 'xl')}
-    ${L(412, 630, 'ห้องธุรการ', 'xs')}${L(467, 631, 'ห้องช่าง', 'xs', ' transform="rotate(-90 467 631)"')}${L(810, 664, 'สโตร์', 'xs')}${L(27, -52, 'ห้องขยะ', 'sm')}
+    ${L(412, 630, 'ห้องธุรการ', 'xs')}${L(467, 631, 'ห้องช่าง', 'xs', ' transform="rotate(-90 467 631)"')}${L(810, 664, 'สโตร์', 'xs')}${L(28, 1, 'ห้องขยะ', 'sm')}
     ${L(299, 785, 'โกดัง', 'lg')}${L(590, 730, 'นอกรั้วโรงงาน', 'sm out-t', ' style="text-anchor:start"')}
     ${L(40, 560, 'คลอง', 'sm water-t', ' transform="rotate(62 40 560)"')}
     ${PILL(267, 568, 'ประตู', 58)}${PILL(1041, -24, 'ประตูหลัง', 86)}${L(313, 643, 'ป้อม', 'xs')}${L(313, 656, 'รปภ.', 'xs')}${L(1048, 35, 'ป้อม รปภ.', 'xs')}
-    <path class="flow" d="M678 110 V58 M668 70 L678 58 L688 70"/><text class="lb flow-t" x="656" y="84" style="text-anchor:end">ทางเข้า-ออก</text>
+    
     <g class="north" transform="translate(1256,-188)"><circle r="20"/><path d="M0 -13 L7 7 L0 3 L-7 7 Z"/><text y="-26">N</text></g>
     <g class="sp-legend" transform="translate(1136,96)">
       <rect class="lg-bg" x="0" y="0" width="150" height="196" rx="10"/>
@@ -653,29 +658,42 @@ const FREE_PRESETS = {
       row(1.0, 3.9, 8, 'u'), row(3.0, 5.62, 6, 'd'), row(11.4, 3.9, 10, 'u'), row(11.4, 5.62, 10, 'd'),   // กลุ่มกลาง ซ้าย 8+6 ขวา 10+10
       row(3.0, 9.1, 6, 'u'), row(3.0, 10.82, 6, 'd'), row(11.4, 9.1, 10, 'u'), row(11.4, 10.82, 10, 'd'),  // กลุ่มล่าง ซ้าย 6+6 ขวา 10+10
       { x: 25.6, y: 4.3, n: 8, o: 'h', f: 'l' }];                            // แถวแนวตั้งด้านขวา ใต้ป้อม รปภ. ติดแนวต้นไม้ 8 ช่อง
-    const deco = [{ t: 'bldg', x: 25.4, y: .3, w: 2.6, h: 1.6, label: 'ป้อม รปภ.' },
+    const deco = [{ t: 'fx', cls: 'dirt', x: -.3, y: -.3, w: 31.2, h: 15 }, { t: 'bldg', x: 25.4, y: .3, w: 2.6, h: 1.6, label: 'ป้อม รปภ.' },
       ...[4.4, 6.5, 8.6, 10.7, 12.8].map(y => ({ t: 'tree', x: 27.6, y, w: 1.2, h: 1.2 })),
       { t: 'lane', x: .45, y: 3.0, w: 22.95, h: 0 }, { t: 'lane', x: .45, y: 8.2, w: 22.95, h: 0 }, { t: 'lane', x: .45, y: 13.5, w: 22.95, h: 0 },
       { t: 'lane', x: .45, y: 3.0, w: 0, h: 10.5 }, { t: 'lane', x: 23.4, y: 3.0, w: 0, h: 10.5 },
       ...[[4.5, 3.0, 'r'], [9.5, 3.0, 'r'], [15, 3.0, 'r'], [20, 3.0, 'r'], [4.5, 8.2, 'l'], [9.5, 8.2, 'l'], [15, 8.2, 'l'], [20, 8.2, 'l'],
         [4.5, 13.5, 'l'], [9.5, 13.5, 'l'], [15, 13.5, 'l'], [20, 13.5, 'l'], [23.4, 5.6, 'd'], [23.4, 10.9, 'd'], [.45, 5.6, 'u'], [.45, 10.9, 'u'],
         [.45, 3.0, 'tl'], [23.4, 3.0, 'tr'], [23.4, 13.5, 'br'], [.45, 13.5, 'bl']].map(([x, y, d]) => ({ t: 'arrow', x, y, d })),
-      { t: 'entry', x: 23.4, y: 2.25, w: 7.96, h: 1.5 },                      // ทางเข้า-ออกลาน ด้านขวาบน ระหว่างป้อม รปภ. กับแถวช่องด้านขวา
-      { t: 'lane', x: 23.4, y: 3.0, w: 7.2, h: 0 },
-      { t: 'arrow', x: 27.0, y: 2.62, d: 'r', c: 'out' }, { t: 'arrow', x: 27.0, y: 3.38, d: 'l', c: 'in' },
-      { t: 'gate', x: 29.0, y: 2.62, d: 'out' }, { t: 'gate', x: 29.0, y: 3.38, d: 'in' }];
+      ];
     return { w: 30.6, h: 14.4, blocks, deco };
   }
 };
-const freePresetKey = z => z && z.free && /loft/i.test(z.name) ? 'loft' : '';
+FREE_PRESETS.front = () => {   // หน้าตึก 2.2: แถบยาวเลียบผนังอาคาร
+  const blocks = [{ x: .6, y: 1.8, n: 12, o: 'v', f: 'u' }];
+  const deco = [{ t: 'fx', cls: 'bldg-roof', x: 0, y: 0, w: 13.2, h: 1.35, label: 'อาคารผลิต 2.2' },
+    { t: 'fx', cls: 'walk', x: 0, y: 1.35, w: 13.2, h: .3 },
+    { t: 'fx', cls: 'road', x: 0, y: 3.95, w: 13.2, h: 1.5, label: '' },
+    { t: 'arrow', x: 4, y: 4.7, d: 'r' }, { t: 'arrow', x: 10, y: 4.7, d: 'r' }];
+  return { w: 13.2, h: 5.45, blocks, deco };
+};
+FREE_PRESETS.power = () => {   // โรงไฟฟ้า: ลานเล็กหัวมุมถนน 2 แถวหันหน้าเข้าหากัน
+  const blocks = [{ x: .5, y: .5, n: 5, o: 'v', f: 'd' }, { x: .5, y: 4.0, n: 5, o: 'v', f: 'u' }];
+  const deco = [{ t: 'lane', x: .5, y: 3.11, w: 5, h: 0 },
+    { t: 'fx', cls: 'road', x: 5.9, y: 0, w: 1.6, h: 7.9 }, { t: 'fx', cls: 'road', x: 0, y: 6.3, w: 7.5, h: 1.6 },
+    { t: 'arrow', x: 6.7, y: 3, d: 'd' }, { t: 'arrow', x: 3, y: 7.1, d: 'l' }];
+  return { w: 7.5, h: 7.9, blocks, deco };
+};
+const freePresetKey = z => z && z.free && /loft/i.test(z.name) ? 'loft' : z && z.free && /2\.2/.test(z.name) ? 'front' : z && z.free && /ไฟฟ้า/.test(z.name) ? 'power' : '';
 const freePresetCount = z => FREE_PRESETS[freePresetKey(z)]().blocks.reduce((a, b) => a + b.n, 0);
 function freeLot(z, o) {
   const L = FREE_PRESETS[freePresetKey(z)](), px = v => (v * UNIT).toFixed(1) + 'px', box = (x, y, w, h) => `left:${px(x)};top:${px(y)};width:${px(w)};height:${px(h)}`;
-  const pos = []; L.blocks.forEach(b => { for (let i = 0; i < b.n; i++) pos.push({ x: b.o === 'v' ? b.x + i * SW : b.x, y: b.o === 'h' ? b.y + i * SW : b.y, o: b.o, f: b.f }); });
+  const pos = []; L.blocks.forEach(b => { for (let i = 0; i < b.n; i++) pos.push({ x: b.o === 'v' ? b.x + i * (b.gap || SW) : b.x, y: b.o === 'h' ? b.y + i * SW : b.y, o: b.o, f: b.f, rot: b.rot || 0 }); });
   const n = Math.min(pos.length, Math.max(capOf(z), o.items.length));
   let h = '';
   (L.deco || []).forEach(d => {
     if (d.t === 'tree') h += `<div class="deco tree" style="${box(d.x, d.y, d.w, d.h)}"></div>`;
+    else if (d.t === 'fx') h += `<div class="deco fx ${d.cls}" style="${box(d.x, d.y, d.w, d.h)}"><span>${esc(d.label || '')}</span></div>`;
     else if (d.t === 'lane') h += `<div class="deco lane-line ${d.w ? 'lh' : 'lv'}" style="left:${px(d.x)};top:${px(d.y)};${d.w ? 'width:' + px(d.w) : 'height:' + px(d.h)}"></div>`;
     else if (d.t === 'arrow') { const turn = /^(tl|tr|br|bl)$/.test(d.d), rot = { r: 0, d: 90, l: 180, u: 270, tl: 0, tr: 90, br: 180, bl: 270 }[d.d];
       h += `<svg class="deco lane-arrow${turn ? ' turn' : ''}${d.c ? ' ea ea-' + d.c : ''}" style="left:${px(d.x)};top:${px(d.y)};transform:translate(-50%,-50%) rotate(${rot}deg)" viewBox="${turn ? '0 0 32 32' : '0 0 40 20'}" aria-hidden="true">${turn
@@ -685,7 +703,7 @@ function freeLot(z, o) {
     else if (d.t === 'entry') h += `<div class="deco lot-entry" style="${box(d.x, d.y, d.w, d.h)}"></div>`;
     else h += `<div class="deco bldg booth" style="${box(d.x, d.y, d.w, d.h)}"><span>${esc(d.label || '')}</span></div>`;
   });
-  for (let i = 0; i < n; i++) { const p = pos[i]; h += slotHtml(z, { slot: '', temp: o.items[i], idx: i, open: true, later: [] }, { style: box(p.x, p.y, p.o === 'v' ? SW : SL, p.o === 'v' ? SL : SW), cls: `lay o-${p.o} f-${p.f}`, free: true }); }
+  for (let i = 0; i < n; i++) { const p = pos[i]; h += slotHtml(z, { slot: '', temp: o.items[i], idx: i, open: true, later: [] }, { style: box(p.x, p.y, p.o === 'v' ? SW : SL, p.o === 'v' ? SL : SW) + (p.rot ? `;transform:translateZ(1px) rotate(${p.rot}deg);--rot:${p.rot}deg` : ''), cls: `lay o-${p.o} f-${p.f}${p.rot ? ' rot' : ''}`, free: true }); }
   return { html: h, w: L.w * UNIT, h: L.h * UNIT };
 }
 function lotHtml(z, o) {
@@ -731,8 +749,8 @@ function slotBadge(z, c, d) {
   if (!c.slot || z.free) return '';
   const l = slotPlan(z, c.slot, d); if (!l.length) return '';
   const x = l.find(y => y.t !== 'in') || l[0];
-  const txt = x.t === 'mv' ? `ย้ายไป ${moveZone(x.p) === z.id ? '' : short(zoneName(moveZone(x.p)), 10) + ' '}${x.p.move.slot} · ${dShort(x.d)}` : x.t === 'out' ? `ออก ${dShort(x.d)}` : `${short(khun(firstName(x.p.name)), 12)} เข้า ${dShort(x.d)}`;
-  return `<span class="pbadge ${x.t === 'out' ? 'out' : 'mv'}">${esc(txt)}</span>`;
+  const txt = x.t === 'mv' ? `→ ${moveZone(x.p) === z.id ? '' : String(zoneName(moveZone(x.p))).split(/\s+/)[0].slice(0, 5) + ' '}${x.p.move.slot} · ${dShort(x.d)}` : x.t === 'out' ? `ออก ${dShort(x.d)}` : `${short(khun(firstName(x.p.name)), 12)} เข้า ${dShort(x.d)}`;
+  const [t1, t2] = txt.split(' · '); return `<span class="pbadge ${x.t === 'out' ? 'out' : 'mv'}">${esc(t1)}${t2 ? `<br>${esc(t2)}` : ''}</span>`;
 }
 function slotHtml(z, c, pos) {
   const sel = S.sel && ((S.sel.slot != null && !z.free && normSlot(S.sel.slot) === normSlot(c.slot) && S.sel.zone === z.id) || (S.sel.idx != null && z.free && S.sel.idx === c.idx && S.sel.zone === z.id && !c.temp)
@@ -768,6 +786,7 @@ function renderPanel(z, o) {   // ผังเต็มจอ: แผงรา�
   const p = $('panel'); p.classList.remove('off'); renderPanelInner(z, o);
   if (!p.classList.contains('off')) p.insertAdjacentHTML('afterbegin', '<button type="button" class="p-close" data-act="p-close" aria-label="ปิด">✕</button>');
   guardTrim(p);
+  layoutStage();   // การ์ดเปิด/ปิดแล้วความกว้างผังเปลี่ยน: ย่อผังให้พอดีที่เหลือ
 }
 function renderPanelInner(z, o) {
   const p = $('panel'), sel = S.sel;
@@ -812,6 +831,12 @@ function renderPanelInner(z, o) {
   p.innerHTML = ''; p.classList.add('off');
 }
 
+function keepScroll(fn) { const y = window.scrollY, st = $('stage'), h = st && st.offsetHeight; if (st && h) st.style.minHeight = h + 'px'; fn(); window.scrollTo(0, y); requestAnimationFrame(() => { window.scrollTo(0, y); if (st) st.style.minHeight = ''; }); }
+const selKey = v => v ? JSON.stringify([v.perm || '', v.temp || '', v.zone || '', v.slot || '', v.idx == null ? '' : v.idx]) : '';
+function selPick(v) {   // แตะรถ/ช่อง: แตะซ้ำคันเดิม = ปิดการ์ด, หน้าไม่กระโดด
+  S.sel = selKey(S.sel) === selKey(v) ? null : v;
+  keepScroll(renderMap);
+}
 function peekPanel() {   // จอเล็ก: เลื่อนให้เห็นรายละเอียดช่องที่เพิ่งแตะ
   return;   // แผงลอยอยู่บนผังแล้ว ไม่ต้องเลื่อนหน้า
   const p = $('panel'), r = p.getBoundingClientRect();
@@ -1669,8 +1694,8 @@ function renderData() {
     const rows = dataRowsPerm(q, fz, fs_);
     $('dCount').textContent = `${rows.length} รายการ`;
     $('dTable').innerHTML = `<thead><tr><th>ชื่อ-นามสกุล</th><th>รหัส</th><th>ทะเบียน</th><th>แผนก / ฝ่าย</th><th>สถานที่</th><th>ช่อง</th><th>สถานะ</th><th>แก้ไขล่าสุด</th><th></th></tr></thead><tbody>` +
-      (rows.map(p => `<tr class="${p.active ? '' : 'off'}"><td><b>${esc(p.name)}</b></td><td class="nw">${esc(p.empId)}</td><td class="nw">${esc(p.plate)}</td><td>${esc(p.dept)}<div class="sub">${esc(p.division)}</div></td><td>${esc(zoneName(p.zone))}</td><td class="nw"><b>${esc(p.slot)}</b>${p.active && hasMove(p) ? `<div class="sub" style="color:#1F57B0">→ ${moveZone(p) !== p.zone ? esc(zoneName(moveZone(p))) + ' ' : ''}ช่อง ${esc(p.move.slot)} ตั้งแต่ ${fmtDate(p.move.date)}</div>` : ""}${p.active && p.endDate ? `<div class="sub" style="color:#B4471A">ถึง ${fmtDate(p.endDate)}</div>` : ""}</td>
-        <td class="keep"><span class="status ${p.active ? 'st-perm' : 'st-expired'}">${p.active ? 'ใช้งานอยู่' : 'คืนช่องแล้ว'}</span></td><td class="keep nw sub">${fmtTs(p.updatedAt)}<br>${esc(p.updatedBy || '')}</td>
+      (rows.map(p => `<tr class="${p.active ? '' : 'off'}"><td><b>${esc(p.name)}</b></td><td class="nw">${esc(p.empId)}</td><td class="nw">${esc(p.plate)}</td><td>${esc(p.dept)}<div class="sub">${esc(p.division)}</div></td><td>${esc(zoneName(p.zone))}</td><td class="c-slot"><b>${esc(p.slot)}</b>${p.active && hasMove(p) ? `<div class="sub" style="color:#1F57B0">→ ${moveZone(p) !== p.zone ? esc(zoneName(moveZone(p))) + ' ' : ''}ช่อง ${esc(p.move.slot)}<br>ตั้งแต่ ${fmtDate(p.move.date)}</div>` : ""}${p.active && p.endDate ? `<div class="sub" style="color:#B4471A">ถึง ${fmtDate(p.endDate)}</div>` : ""}</td>
+        <td class="keep nw"><span class="status ${p.active ? 'st-perm' : 'st-expired'}">${p.active ? 'ใช้งานอยู่' : 'คืนช่องแล้ว'}</span></td><td class="keep nw sub">${fmtTs(p.updatedAt)}<br>${esc(p.updatedBy || '')}</td>
         <td class="keep nw"><button class="link" data-act="goto-perm" data-id="${esc(p.id)}">ดูในผัง</button><button class="link" data-act="edit-perm" data-id="${esc(p.id)}">แก้ไข</button><button class="link" data-act="toggle-perm" data-id="${esc(p.id)}">${p.active ? 'คืนช่อง' : 'ใช้งานอีกครั้ง'}</button><button class="link" data-act="hist" data-kind="perm" data-id="${esc(p.id)}">ประวัติ</button><button class="link danger" data-act="del-perm" data-id="${esc(p.id)}">ลบ</button></td></tr>`).join('')
         || '<tr><td colspan="9" class="muted" style="text-align:center;padding:28px">ยังไม่มีข้อมูล ลงทะเบียนหรือนำเข้าไฟล์ Excel</td></tr>') + '</tbody>';
   } else {
@@ -1877,9 +1902,15 @@ async function importFile(f) {
     const body = `<ul class="muted">${st.sheets.map(x => `<li>${esc(x)}</li>`).join('')}</ul><p style="margin-top:10px">เพิ่มใหม่ <b>${st.added}</b> อัปเดต <b>${st.updated}</b>${st.newSlots ? ` เพิ่มหมายเลขช่องใหม่ <b>${st.newSlots}</b>` : ''}</p>${skip}`;
     if (!st.added && !st.updated) return openDialog({ title: 'ไม่มีข้อมูลที่นำเข้าได้', body, buttons: [{ label: 'ปิด', value: true, cls: 'pri' }] });
     if (!await openDialog({ title: 'ตรวจสอบก่อนนำเข้า', body, buttons: [{ label: 'ยกเลิก', value: false }, { label: 'นำเข้าข้อมูล', value: true, cls: 'pri' }] })) return;
-    await writeOps(st.ops); if (S.dtab !== 'reg') await rebuildLocks().catch(console.error);
+    try { await writeOps(st.ops); } catch (e) { if (e && typeof e === 'object') e.stage = 'save'; throw e; }
+    if (S.dtab !== 'reg') await rebuildLocks().catch(console.error);
     toast(`นำเข้าแล้ว เพิ่ม ${st.added} อัปเดต ${st.updated}`);
-  } catch (err) { console.error(err); toast('อ่านไฟล์ไม่สำเร็จ ตรวจว่าเป็นไฟล์ .xlsx หรือ .csv'); }
+  } catch (err) {
+    console.error(err);
+    if (err && (err.code === 'permission-denied' || /permission|insufficient/i.test(err.message || ''))) return info('บันทึกไม่ได้', 'ไฟล์อ่านได้ปกติ แต่ระบบไม่อนุญาตให้บันทึก<br>ตรวจว่าเข้าด้วยบัญชีผู้ดูแลหรือสมาชิก และเผยแพร่ firestore.rules รุ่นล่าสุดใน Firebase แล้ว');
+    if (err && err.stage === 'save') return info('บันทึกไม่ได้', 'ไฟล์อ่านได้ปกติ แต่บันทึกขึ้นระบบไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วลองใหม่');
+    toast('อ่านไฟล์ไม่สำเร็จ ตรวจว่าเป็นไฟล์ .xlsx หรือ .csv');
+  }
 }
 
 /* ---------- ตั้งค่า ---------- */
@@ -1933,10 +1964,11 @@ async function act(b) {
   if ((a === 'edit-temp' || a === 'cancel-temp') && !canEditTemp(db.temp.find(x => x.id === id))) return toast('แก้หรือยกเลิกได้เฉพาะรายการที่คุณเพิ่มเอง');
   const z = getZone(S.zone);
   switch (a) {
-    case 'p-close': S.sel = null; return renderMap();
-    case 'sel-slot': S.sel = { zone: S.zone, slot: b.dataset.slot }; renderMap(); return peekPanel();
-    case 'sel-open': S.sel = { zone: S.zone, idx: +b.dataset.idx }; renderMap(); return peekPanel();
-    case 'sel-perm': S.sel = { perm: id }; renderMap(); return peekPanel();
+    case 'stage-bg': if (!S.sel) return; S.sel = null; return keepScroll(renderMap);
+    case 'p-close': S.sel = null; return keepScroll(renderMap);
+    case 'sel-slot': return selPick({ zone: S.zone, slot: b.dataset.slot });
+    case 'sel-open': return selPick({ zone: S.zone, idx: +b.dataset.idx });
+    case 'sel-perm': return selPick({ perm: id });
     case 'sel-temp': { const t = db.temp.find(x => x.id === id); if (t && (t.zone !== S.zone || !onDay(t, S.vDate) || !overlap(t.from, t.to, S.vFrom, S.vTo))) { S.zone = t.zone; S.vDate = focusDate(t); S.vFrom = t.from; S.vTo = t.to; S.follow = false; } S.sel = { temp: id }; if (S.tab !== 'map') return showTab('map'); renderMap(); return peekPanel(); }
     case 'goto-perm': return gotoRec('perm', id);
     case 'goto-temp': return gotoRec('temp', id);
@@ -2203,10 +2235,11 @@ function bindEvents() {
     const ins = e.target.closest('[data-ins]'); if (ins) { $('insName').value = ins.dataset.ins; return closeDlg(true); }
     if (e.target.closest('[data-dlg-close]')) return closeDlg(false);
     const t = e.target.closest('[data-tab]'); if (t) return showTab(t.dataset.tab);
-    const zc = e.target.closest('[data-zone].zchip, .mk[data-zone]'); if (zc) { S.zone = zc.dataset.zone; S.sel = null; saveUi(); renderMap(); if (zc.classList.contains('mk')) scrollToLot(); return; }
+    const zc = e.target.closest('[data-zone].zchip, .mk[data-zone]'); if (zc) { S.zone = zc.dataset.zone; S.sel = null; saveUi(); renderMap(); scrollToLot(); return; }
     const dt = e.target.closest('[data-dtab]'); if (dt) { S.dtab = dt.dataset.dtab; saveUi(); return renderData(); }
     const ty = e.target.closest('#bType button'); if (ty && !ty.disabled) return setSheetType(ty.dataset.type);
     const b = e.target.closest('[data-act]'); if (b) { e.preventDefault(); act(b); }
+    else if (S.sel && S.tab === 'map' && e.target.closest('#stage') && !e.target.closest('.slot,#panel')) act({ dataset: { act: 'stage-bg' } });   // แตะที่ว่างในผัง = ปิดการ์ด
     if (!e.target.closest('#findForm')) $('findList').hidden = true;
   });
   document.addEventListener('keydown', e => {

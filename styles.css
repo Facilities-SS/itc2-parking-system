@@ -929,3 +929,57 @@ svg.car.perm{color:#2D6FD6} svg.car.temp{color:#F08A1C} .slot.t-vip svg.car.temp
 .sp .lb.xl{fill:#26303A}
 .sp .lb.out-t{fill:#3E4A40;stroke:#D7E4CC}
 .sp .flow-t{fill:#167D75}
+/* ===== v28: ผังลานเสมือนจริง ===== */
+.lot .deco.fx{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.lot .deco.fx span{font-weight:700;font-size:15px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+.lot .deco.fx.grass{background:#6E8F5C radial-gradient(circle at 30% 30%,rgba(255,255,255,.08) 2px,transparent 3px) 0 0/14px 14px}
+.lot .deco.fx.canal{background:linear-gradient(90deg,#3F7F96,#5DA3BA 50%,#3F7F96)} .lot .deco.fx.canal span{writing-mode:vertical-rl;font-size:14px}
+.lot .deco.fx.tree2{border-radius:50%;background:radial-gradient(circle at 35% 35%,#9ACB8D,#5E9A52 60%,#3F7339);box-shadow:3px 4px 4px rgba(0,0,0,.35)}
+.lot .deco.fx.wallv{background:repeating-linear-gradient(45deg,#B4532F 0 4px,#F6E7DD 4px 8px);border:1px solid #7E3A20}
+.lot .deco.fx.wallh{background:repeating-linear-gradient(45deg,#B4532F 0 4px,#F6E7DD 4px 8px);border:1px solid #7E3A20}
+.lot .deco.fx.cut{background:linear-gradient(135deg,transparent 49.5%,#6E8F5C 50%)}
+.lot .deco.fx.pond{background:linear-gradient(180deg,#4E93A8,#6FB4C6);border-bottom:2px solid #3B7488}
+.lot .deco.fx.road{background:#5E656C;border-top:2px dashed rgba(255,255,255,.0)}
+.lot .deco.fx.walk{background:#C9CDD1}
+.lot .deco.fx.bldg-roof{background:repeating-linear-gradient(90deg,#D3D8DD 0 5px,#C2C8CF 5px 7px);border:1px solid #8E99A3} .lot .deco.fx.bldg-roof span{color:#3B444C;text-shadow:none}
+.lot .deco.fx.dirt{background:#5E5446 radial-gradient(circle at 20% 30%,rgba(255,255,255,.07) 2px,transparent 3px) 0 0/18px 18px}
+.stage .slot.rot .tag{rotate:calc(var(--rot) * -1)}
+/* ===== v28: พื้นหลังหน้าเว็บ (ทุกหน้า) ===== */
+body{background:
+  radial-gradient(900px 520px at 8% 12%,rgba(52,189,177,.45),transparent 65%),
+  radial-gradient(800px 600px at 95% 20%,rgba(43,123,196,.35),transparent 65%),
+  radial-gradient(900px 600px at 70% 105%,rgba(247,148,29,.22),transparent 60%),
+  linear-gradient(160deg,#EEF6F7,#E6EEF6);background-attachment:fixed;min-height:100vh}
+/* ===== v28: แก้การใช้งานผัง ===== */
+/* 1. ไม่แสดงแถบเลื่อนใต้ผัง (ยังปัดเลื่อนได้บนมือถือ) */
+.stage{scrollbar-width:none} .stage::-webkit-scrollbar{display:none}
+/* 9. กดซ้ำไม่ให้ตัวหนังสือในผังถูกไฮไลต์ */
+.stage,.stage *{-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+/* 5. เลื่อนลงไปที่ผังลานแล้วไม่โดนแถบเมนูบัง */
+#tab-map .when,#tab-map .map-wrap{scroll-margin-top:84px}
+/* 6, 8. การ์ดรายละเอียดลอยติดจอด้านขวา และกันที่ให้ผัง ไม่บังรถคันไหน */
+@media (min-width:1101px){
+  #tab-map .map-wrap{display:flex!important;gap:16px;align-items:flex-start}
+  #tab-map .map-col{flex:1;min-width:0;width:auto!important}
+  #tab-map #panel{position:sticky;top:96px;right:auto;flex:0 0 340px;width:340px;max-height:calc(100vh - 116px);z-index:5;margin-top:44px}
+}
+/* 7. ช่องที่ป้ายชื่ออยู่ซ้ายรถ (40–42): ขยับป้ายออก ไม่ให้รถบังเลขช่อง */
+.stage .slot.lay.f-l .tag{right:calc(100% + 14px)!important}
+.stage .slot.lay.f-r .tag{left:calc(100% + 14px)!important}
+/* 9. ป้ายย้ายช่อง ไม่ล้น */
+.stage .slot .pbadge{max-width:140px;overflow:hidden;text-overflow:ellipsis}
+/* 2. ตารางที่จอดระยะยาว */
+.tbl td.c-slot{white-space:nowrap} .tbl td.c-slot .sub{white-space:normal;min-width:120px;line-height:1.35}
+.tbl td .status{white-space:nowrap}
+/* 14. หน้าตรวจเช็ค: เลขช่องมุมซ้ายบน เครื่องหมายกลาง ชื่อใต้ สระ/วรรณยุกต์ไม่หาย */
+.stage.chk .slot .num,.stage.chk .slot.lay.f-r .num,.stage.chk .slot.lay.f-l .num{left:8px!important;right:auto!important;top:7px!important;bottom:auto!important;transform:none!important;width:auto!important;text-align:left;font:800 14px/1 var(--f-sign);opacity:1;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4);z-index:2}
+.stage.chk .slot .stag{left:auto;right:7px;top:7px}
+.stage.chk .slot .slbl{display:none}
+.stage.chk .slot .ckm{top:44%;transform:translate(0,-50%);font-size:24px}
+.stage.chk .slot.lay.o-h .ckm{top:42%;font-size:20px}
+.stage.chk .slot .cko{top:auto;bottom:8px;margin-top:0;left:4px;right:4px;font:700 11px/1.45 var(--f-ui);color:#fff;opacity:1;white-space:nowrap;display:block;overflow:hidden;text-overflow:ellipsis;padding-top:2px;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.stage.chk .slot.lay.o-h .cko{bottom:5px;font-size:10.5px}
+.stage.chk .slot .stag{left:auto!important;right:6px!important;top:6px!important;width:auto!important;max-width:none}
+.stage .slot.lay.f-l .tag{overflow:visible!important}.stage .slot.lay.f-l .tag .tn{min-width:24px;justify-content:center;text-align:center;border-radius:0 6px 6px 0;margin:-3px -8px -3px 0!important}
+.stage .slot .pbadge{max-width:calc(100% + 10px)!important;text-align:center;line-height:1.2;white-space:nowrap;font-size:9.5px;padding:3px 4px}.stage .slot.lay.o-h .pbadge{max-width:120px!important}
+.stage .slot.lay.o-v .pbadge{max-width:calc(100% + 26px)!important;font-size:9px}
