@@ -81,7 +81,7 @@ function slotsText(slots) {
 
 /* ================= สถานะ ================= */
 let docs = new Map();                 // id -> เอกสารดิบ (แหล่งข้อมูลจริง)
-let db = { zones: [], permanent: [], temp: [], trash: [], checks: [] };
+let db = { zones: [], permanent: [], temp: [], trash: [], checks: [], reg: [] };
 let user = null, isAdmin = false, isGuard = false, access = { members: [], admins: [], guards: [], names: {} };
 /* บัญชีผู้ใช้: ล็อกอินด้วยชื่อผู้ใช้ + รหัสผ่าน (Firebase Email/Password) ผู้ดูแลสร้างบัญชีให้ใน Firebase Console
    ชื่อผู้ใช้ที่ไม่มี @ จะถูกแปลงเป็น <ชื่อ>@parking.local ภายในระบบ (ไม่มีการส่งอีเมลจริง) */
@@ -118,9 +118,9 @@ const isPermZone = z => !!z && !z.free && (z.allowPerm !== undefined ? !!z.allow
 const tagOf = (z, s) => (z && z.tags && z.tags[normSlot(s)]) || '';
 const isVip = (z, s) => tagOf(z, s) === 'vip';
 /* ป้ายช่องเฉพาะแผนก (ตั้งในหน้าตั้งค่า) เช่น บ่อบำบัด 14-15 Serway ปลา, 16-17 PD */
-const DEFAULT_LABELS = { waste: { 14: 'Serway ปลา', 15: 'Serway ปลา', 16: 'PD', 17: 'PD' } };
+const DEFAULT_LABELS = { waste: { 14: 'Survey ปลา', 15: 'Survey ปลา', 16: 'PD', 17: 'PD' } };
 const labelsOf = z => !z || z.free ? {} : z.labels && typeof z.labels === 'object' ? z.labels : (DEFAULT_LABELS[presetKey(z)] || {});
-const labelOf = (z, s) => (s && labelsOf(z)[normSlot(s)]) || '';
+const labelOf = (z, s) => String((s && labelsOf(z)[normSlot(s)]) || '').replace(/serway/i, 'Survey');
 const lblHtml = (z, s, cls = 'slbl') => { const l = labelOf(z, s); return l ? `<span class="${cls}">${esc(l)}</span>` : ''; };
 const labelsText = z => { const g = new Map(); Object.entries(labelsOf(z)).forEach(([k, v]) => { if (!g.has(v)) g.set(v, []); g.get(v).push(k); }); return [...g].map(([v, ks]) => `${slotsText(ks)}=${v}`).join('; '); };
 // ช่องที่รับรถชั่วคราว: สถานที่ช่องประจำ (PILOT PLANT, บ่อบำบัด) รับเฉพาะช่อง VIP / สถานที่อื่นที่มีเลขช่องรับทุกช่อง
@@ -185,12 +185,13 @@ function dayStatus(t, d) {
 
 /* ================= สร้าง db จากเอกสาร ================= */
 function rebuild() {
-  const d = { zones: [], permanent: [], temp: [], trash: [], checks: [] };
+  const d = { zones: [], permanent: [], temp: [], trash: [], checks: [], reg: [] };
   docs.forEach((o, id) => {
     const { docKind, ...rec } = JSON.parse(JSON.stringify(o)); if (!rec.id) rec.id = id;
     if (docKind === 'zone') d.zones.push(rec); else if (docKind === 'perm') d.permanent.push(rec);
     else if (docKind === 'temp') d.temp.push(rec); else if (docKind === 'trash') d.trash.push(rec);
     else if (docKind === 'check') d.checks.push(rec);
+    else if (docKind === 'reg') d.reg.push(rec);
   });
   d.zones.sort((a, b) => (a.ord ?? 1e9) - (b.ord ?? 1e9) || String(a.name).localeCompare(b.name));
   d.zones.forEach(z => {
@@ -542,71 +543,95 @@ function customLot(z, cellOf) {   // คืน {html, w, h} หน่วยพ�
    แผนผังแบบสถาปัตย์ วาดตามแบบแปลนโรงงาน ภาพดาวเทียม และจุดที่แผนกระบุ (ตำแหน่งโดยประมาณ ไม่ตามมาตราส่วน) */
 const SITE_LOTS = {   // pts = ขอบลานจอด, a = จุดกลางลาน, p = ตำแหน่งป้าย (มีเส้นชี้ถ้าไม่ตรงลาน)
   pilot: { pts: '14,300 146,300 146,492 104,492', a: [96, 380], p: [40, 252], side: 'r' },
-  waste: { pts: '664,-138 688,-138 688,14 664,14', a: [676, -62], p: [676, -128], side: 'l' },
-  front: { pts: '490,612 660,612 660,668 490,668', a: [575, 640], p: [736, 582], side: 'r' },
+  waste: { pts: '664,-138 688,-138 688,14 664,14', a: [676, -62], p: [560, -196], side: 'r' },
+  front: { pts: '490,612 660,612 660,668 490,668', a: [575, 640], p: [764, 584], side: 'r' },
   power: { pts: '424,716 560,716 560,848 424,848', a: [492, 782], p: [612, 782], side: 'r' },
-  loft: { pts: '996,-160 1078,-160 1078,-40 996,-40', a: [1037, -100], p: [1037, -112], side: 'r' }   // ลาน Loft เหนือประตูหลัง นอกกำแพง ซ้ายของถนนตัดใหม่
+  loft: { pts: '996,-160 1078,-160 1078,-40 996,-40', a: [1037, -100], p: [1150, -196], side: 'l' }   // ลาน Loft เหนือประตูหลัง นอกกำแพง ซ้ายของถนนตัดใหม่
 };
 const siteKey = z => { const k = presetKey(z), n = String(z.name); return k === 'pilot' ? 'pilot' : k === 'waste' ? 'waste' : /2\.2/.test(n) ? 'front' : /ไฟฟ้า/.test(n) ? 'power' : /loft/i.test(n) ? 'loft' : ''; };
 function renderSite() {
   const det = $('site'); if (!det) return;
   if (det.dataset.init !== '1') { det.dataset.init = '1'; if (window.innerWidth > 760) det.open = true; }
-  const B = (x, y, w, h, cls = '') => `<rect class="b ${cls}" x="${x}" y="${y}" width="${w}" height="${h}" rx="2"/>`;
+  // อาคารแบบมองจากด้านบน: หลังคาเมทัลชีทมีลอน + สันหลังคา + เงา
+  const B = (x, y, w, h, cls = '', o = {}) => {
+    const v = o.v != null ? o.v : h > w, rid = v ? `<line class="ridge" x1="${x + w / 2}" y1="${y + 3}" x2="${x + w / 2}" y2="${y + h - 3}"/>` : `<line class="ridge" x1="${x + 3}" y1="${y + h / 2}" x2="${x + w - 3}" y2="${y + h / 2}"/>`;
+    const units = (o.units || []).map(([ux, uy, uw, uh]) => `<rect class="hvac" x="${x + ux}" y="${y + uy}" width="${uw}" height="${uh}" rx="1.5"/>`).join('');
+    return `<g class="bd ${cls}"><rect class="bd-r ${v ? 'rv' : 'rh'}" x="${x}" y="${y}" width="${w}" height="${h}" rx="1.5"/>${o.flat ? '' : rid}${units}<rect class="bd-e" x="${x + 2.5}" y="${y + 2.5}" width="${w - 5}" height="${h - 5}" rx="1"/></g>`;
+  };
   const L = (x, y, t, cls = '', extra = '') => `<text class="lb ${cls}" x="${x}" y="${y}"${extra}>${t}</text>`;
   const RD = (x, y, w, h) => `<rect class="rd" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
   const CL = (x1, y1, x2, y2) => `<line class="cl" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
   const WALL = d => `<path class="w-out" d="${d}"/><path class="w-in" d="${d}"/><path class="w-ht" d="${d}"/>`;
   const GATE = (x1, y1, x2, y2) => `<line class="g-ln" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/><rect class="g-post" x="${x1 - 5}" y="${y1 - 5}" width="10" height="10"/><rect class="g-post" x="${x2 - 5}" y="${y2 - 5}" width="10" height="10"/>`;
   const PILL = (x, y, t, w) => `<g class="sp-pill"><rect x="${x - w / 2}" y="${y - 13}" width="${w}" height="26" rx="13"/><text x="${x}" y="${y + 1}">${t}</text></g>`;
+  const T = (x, y, r = 11) => `<g class="tree"><circle class="t-sh" cx="${x + 3}" cy="${y + 4}" r="${r}"/><circle class="t-c" cx="${x}" cy="${y}" r="${r}"/><circle class="t-h" cx="${x - r * .3}" cy="${y - r * .3}" r="${r * .45}"/></g>`;
+  const TROW = (x1, y1, x2, y2, n, r) => Array.from({ length: n }, (_, k) => T(x1 + (x2 - x1) * k / Math.max(1, n - 1), y1 + (y2 - y1) * k / Math.max(1, n - 1), r)).join('');
   const cur = getZone(S.zone), curKey = cur ? siteKey(cur) : '';
   const lots = Object.entries(SITE_LOTS).map(([k, Lt]) => `<polygon class="pk${Lt.soil ? ' soil' : ''} ${k === curKey ? 'on' : ''}" points="${Lt.pts}"/>`).join('');
   const world = `
     <defs>
       <pattern id="spHatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="#B4532F" stroke-width="2.2"/></pattern>
-      <pattern id="spOut" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="12" stroke="#000" stroke-opacity=".045" stroke-width="5"/></pattern>
-      <pattern id="spStall" width="11" height="11" patternUnits="userSpaceOnUse"><rect width="11" height="11" fill="#2B7BC4" fill-opacity=".16"/><line x1="0" y1="0" x2="0" y2="11" stroke="#fff" stroke-opacity=".85" stroke-width="1.2"/></pattern>
-      <pattern id="spStallOn" width="11" height="11" patternUnits="userSpaceOnUse"><rect width="11" height="11" fill="#F7941D" fill-opacity=".34"/><line x1="0" y1="0" x2="0" y2="11" stroke="#fff" stroke-opacity=".9" stroke-width="1.2"/></pattern>
-      <pattern id="spRoof" width="18" height="18" patternUnits="userSpaceOnUse"><rect width="18" height="18" fill="#fff"/><path d="M0 9 H18 M9 0 V18" stroke="#E6EBEF" stroke-width="1"/></pattern>
-      <pattern id="spSoil" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="#E8DCC4"/><circle cx="4" cy="5" r="1.3" fill="#B9A27C"/><circle cx="12" cy="11" r="1.1" fill="#B9A27C"/><circle cx="10" cy="3" r=".8" fill="#C9B590"/><circle cx="3" cy="13" r=".9" fill="#C9B590"/></pattern>
+      <pattern id="spGrass" width="22" height="22" patternUnits="userSpaceOnUse"><rect width="22" height="22" fill="#D7E4CC"/><circle cx="5" cy="6" r="1.4" fill="#C6D8B8"/><circle cx="15" cy="15" r="1.2" fill="#C9DABB"/><circle cx="17" cy="4" r=".9" fill="#E3ECDA"/><circle cx="7" cy="17" r="1" fill="#E3ECDA"/></pattern>
+      <pattern id="spRoofV" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" fill="#DCE1E6"/><rect width="7" height="2.4" fill="#C9D0D7"/></pattern>
+      <pattern id="spRoofH" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" fill="#DCE1E6"/><rect width="2.4" height="7" fill="#C9D0D7"/></pattern>
+      <pattern id="spRoofWV" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" fill="#F1DFCF"/><rect width="7" height="2.4" fill="#E3C6AC"/></pattern>
+      <pattern id="spRoofCH" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" fill="#E6EFF6"/><rect width="2.4" height="7" fill="#CFDDEA"/></pattern>
+      <pattern id="spRoofCV" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" fill="#E6EFF6"/><rect width="7" height="2.4" fill="#CFDDEA"/></pattern>
+      <pattern id="spStall" width="11" height="22" patternUnits="userSpaceOnUse"><rect width="11" height="22" fill="#7C848B"/><line x1="0" y1="0" x2="0" y2="22" stroke="#F4F6F7" stroke-width="1.1"/></pattern>
+      <pattern id="spStallOn" width="11" height="22" patternUnits="userSpaceOnUse"><rect width="11" height="22" fill="#B0703A"/><line x1="0" y1="0" x2="0" y2="22" stroke="#FFF4E8" stroke-width="1.2"/></pattern>
+      <pattern id="spSoil" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="#E8DCC4"/><circle cx="4" cy="5" r="1.3" fill="#B9A27C"/><circle cx="12" cy="11" r="1.1" fill="#B9A27C"/></pattern>
+      <pattern id="spOut" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="12" stroke="#000" stroke-opacity=".035" stroke-width="5"/></pattern>
+      <linearGradient id="spWater" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8FCFDD"/><stop offset="1" stop-color="#5DA8BE"/></linearGradient>
+      <radialGradient id="spClar" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#A9DCE6"/><stop offset="1" stop-color="#5E9FB3"/></radialGradient>
       <linearGradient id="spBadge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#34BDB1"/><stop offset="1" stop-color="#2B7BC4"/></linearGradient>
       <linearGradient id="spBadgeOn" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FBB040"/><stop offset="1" stop-color="#EF5B24"/></linearGradient>
-      <filter id="spSh" x="-10%" y="-10%" width="130%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#1B2A36" flood-opacity=".14"/></filter>
+      <filter id="spSh" x="-10%" y="-10%" width="130%" height="140%"><feDropShadow dx="5" dy="7" stdDeviation="2.6" flood-color="#1B2A36" flood-opacity=".28"/></filter>
       <filter id="spSh2" x="-20%" y="-30%" width="150%" height="180%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#1B2A36" flood-opacity=".22"/></filter>
     </defs>
-    <rect class="land" x="-10" y="-170" width="1310" height="1050"/>
+    <rect class="land" x="-10" y="-230" width="1310" height="1110"/>
+    <path class="yard" d="M-6 60 H124 V290 H-6 Z"/><path class="yard" d="M-6 290 L8 298 L100 500 L232 504 V593 H288 V674 H1082 V58 H-6 Z"/><rect class="yard" x="-10" y="-170" width="994" height="194"/>
     <rect class="outside" x="-10" y="702" width="1310" height="178"/><rect x="-10" y="702" width="1310" height="178" fill="url(#spOut)"/>
-    <path class="water-b" d="M-10 400 C 30 500, 75 600, 122 710 S 150 820, 160 880"/><path class="water" d="M-10 400 C 30 500, 75 600, 122 710 S 150 820, 160 880"/>
-    ${RD(-10, 22, 1116, 26)}${RD(-10, 678, 1310, 24)}${RD(1086, -170, 20, 192)}${RD(126, 48, 20, 244)}${RD(450, 48, 36, 544)}${RD(664, 48, 28, 580)}${RD(1086, 48, 20, 630)}${RD(146, 262, 144, 22)}${RD(246, 284, 42, 394)}
-    ${CL(-10, 35, 1104, 35)}${CL(-10, 690, 1300, 690)}${CL(1096, -168, 1096, 676)}${CL(468, 52, 468, 588)}${CL(678, 52, 678, 624)}${CL(267, 290, 267, 672)}
+    <path class="water-bk" d="M-10 400 C 30 500, 75 600, 122 710 S 150 820, 160 880"/><path class="water-b" d="M-10 400 C 30 500, 75 600, 122 710 S 150 820, 160 880"/><path class="water" d="M-10 400 C 30 500, 75 600, 122 710 S 150 820, 160 880"/>
+    ${RD(-10, 22, 1116, 26)}${RD(-10, 678, 1310, 24)}${RD(1086, -230, 20, 252)}${RD(126, 48, 20, 244)}${RD(450, 48, 36, 544)}${RD(664, 48, 28, 580)}${RD(1086, 48, 20, 630)}${RD(146, 262, 144, 22)}${RD(246, 284, 42, 394)}
+    ${CL(-10, 35, 1104, 35)}${CL(-10, 690, 1300, 690)}${CL(1096, -228, 1096, 676)}${CL(468, 52, 468, 588)}${CL(678, 52, 678, 624)}${CL(267, 290, 267, 672)}
+    ${TROW(-2, 520, 60, 640, 4, 10)}${TROW(1120, -200, 1120, 640, 13, 11)}${TROW(10, -205, 960, -205, 22, 9)}${TROW(440, 740, 580, 740, 4, 11)}${TROW(440, 800, 580, 800, 4, 11)}${TROW(190, 870, 400, 870, 6, 8)}
     <g filter="url(#spSh)">
-      ${B(-4, -112, 64, 110)}${B(160, -150, 262, 160)}${B(500, -150, 158, 162)}<rect class="b pond" x="696" y="-160" width="184" height="172" rx="2"/><rect class="b bins" x="888" y="-160" width="86" height="150" rx="2"/>
-      ${B(-4, 60, 124, 230)}<path class="b roof" d="M150 60 H445 V588 H292 V255 H150 Z"/>${B(148, 300, 94, 172, 'pp')}
-      <rect class="b roof" x="490" y="60" width="170" height="548" rx="2"/>
-      ${B(381, 601, 62, 59)}${B(294, 630, 38, 38, 'post')}${B(448, 594, 38, 74, 'acc')}${B(706, 654, 207, 18)}
-      ${B(181, 712, 237, 142)}
+      ${B(-4, -112, 64, 110, '', { flat: 1 })}${B(68, -150, 84, 96)}${B(68, -44, 84, 54, '', { units: [[8, 10, 14, 10], [30, 10, 14, 10]] })}${B(160, -150, 262, 160, '', { units: [[20, 18, 24, 16], [60, 18, 24, 16], [200, 110, 34, 26]] })}${B(500, -150, 158, 162, '', { v: 1, units: [[16, 120, 26, 18]] })}${B(696, -160, 184, 36)}
+      <rect class="pond-r" x="696" y="-118" width="184" height="130" rx="3"/>
+      ${B(888, -160, 86, 150, 'bins', { flat: 1 })}${B(-4, 60, 124, 230, '', { units: [[14, 20, 20, 14], [14, 190, 20, 14]] })}
+      <path class="bd-r rv" d="M150 60 H445 V588 H292 V255 H150 Z"/><path class="bd-e" d="M153 63 H442 V585 H295 V252 H153 Z"/><line class="ridge" x1="368" y1="64" x2="368" y2="584"/><line class="ridge" x1="152" y1="158" x2="292" y2="158"/>
+      ${[[180, 80], [330, 90], [400, 220], [330, 380], [400, 500]].map(([x, y]) => `<rect class="hvac" x="${x}" y="${y}" width="26" height="18" rx="1.5"/>`).join('')}
+      ${B(148, 300, 94, 172, 'pp', { units: [[20, 20, 18, 14], [56, 130, 18, 14]] })}
+      ${B(490, 60, 170, 548, '', { v: 1, units: [[20, 40, 28, 18], [120, 40, 28, 18], [20, 300, 28, 18], [120, 460, 28, 18]] })}
+      <path class="bd-r cold rh" d="M708 70 H1076 V612 H966 V205 H708 Z"/><path class="bd-e" d="M711 73 H1073 V609 H969 V202 H711 Z"/><line class="ridge" x1="712" y1="137" x2="1020" y2="137"/><line class="ridge" x1="1021" y1="138" x2="1021" y2="608"/>
+      ${B(708, 214, 248, 398, '', { v: 1, units: [[24, 30, 30, 20], [190, 340, 30, 20]] })}
+      ${B(381, 601, 62, 59, '', { flat: 1 })}${B(294, 630, 38, 38, 'post', { flat: 1 })}${B(448, 594, 38, 74, '', { flat: 1 })}${B(706, 654, 207, 18, '', { flat: 1 })}
+      ${B(181, 712, 237, 142, '', { units: [[20, 20, 26, 18], [180, 100, 26, 18]] })}
     </g>
-    <rect class="area" x="697" y="60" width="383" height="562" rx="2"/><rect class="area" x="292" y="596" width="86" height="72" rx="2"/>
-    ${[[712, -82], [764, -82], [816, -82], [712, -40], [764, -40], [816, -40]].map(([x, y]) => `<rect class="tank" x="${x}" y="${y}" width="44" height="34" rx="6"/>`).join('')}
+    <rect class="pond-w" x="702" y="-112" width="172" height="118" rx="2"/>
+    ${[[734, -78], [786, -78], [838, -78], [734, -26], [786, -26], [838, -26]].map(([x, y]) => `<circle class="clar" cx="${x}" cy="${y}" r="20"/><circle class="clar-i" cx="${x}" cy="${y}" r="5"/><line class="clar-a" x1="${x - 18}" y1="${y}" x2="${x + 18}" y2="${y}"/>`).join('')}
+    ${[[903, -146], [933, -146], [903, -116], [933, -116], [903, -86], [933, -86], [903, -56], [933, -56]].map(([x, y]) => `<circle class="drum" cx="${x + 8}" cy="${y + 8}" r="10"/>`).join('')}
     <rect class="plot" x="160" y="708" width="420" height="150" rx="3"/>
     ${lots}
-    ${WALL('M984 -170 V -3 H1082')}${WALL('M1082 58 V674 H288 V593')}${WALL('M1000 58 H1082')}${WALL('M-6 60 H124 V290 H-6 Z')}${WALL('M-6 290 L8 298 L100 500 L232 504 V593')}
-    ${GATE(232, 593, 288, 593)}${GATE(1000, -3, 1000, 58)}<rect class="b post" x="988" y="18" width="24" height="34" rx="3"/>
-    ${L(291, -66, 'บอยเลอร์', 'lg')}${L(579, -66, 'อาคาร FISH OIL')}${L(788, 0, 'บ่อบำบัดน้ำเสีย TUM3', 'sm')}${L(931, -112, 'พื้นที่', 'xs')}${L(931, -96, 'เก็บถังปลา', 'xs')}
-    ${L(58, 180, 'หอพัก', 'lg')}${L(296, 160, 'อาคารผลิต 2.1', 'xl')}${L(575, 330, 'อาคารผลิต 2.2', 'xl')}
-    ${L(195, 378, 'อาคาร', 'sm')}${L(195, 396, 'PILOT PLANT', 'sm')}${L(888, 340, 'พื้นที่ 40 ไร่', 'xl area-t')}
+    ${WALL('M-10 -180 H984 V -3 H1082')}${WALL('M1082 58 V674 H288 V593')}${WALL('M1000 58 H1082')}${WALL('M-6 60 H124 V290 H-6 Z')}${WALL('M-6 290 L8 298 L100 500 L232 504 V593')}
+    ${GATE(232, 593, 288, 593)}${GATE(1000, -3, 1000, 58)}<rect class="bd-r post" x="988" y="18" width="24" height="34" rx="3"/>
+    ${L(291, -66, 'บอยเลอร์', 'lg')}${L(579, -66, 'อาคาร FISH OIL', 'sm')}${L(579, -48, '(ฟิชออย)', 'xs')}${L(788, -142, 'รถยก', 'sm')}${L(788, 22, 'สิ่งแวดล้อม (บ่อบำบัด TUM3)', 'xs')}${L(931, 6, 'ถังปลา', 'xs')}
+    ${L(110, -112, 'โกดังเก็บ', 'xs')}${L(110, -96, 'เครื่องจักร', 'xs')}${L(110, -17, 'อาคารสโมค', 'xs')}
+    ${L(58, 180, 'หอพัก', 'lg')}${L(296, 120, 'อาคารผลิต 2.1', 'xl')}${L(575, 330, 'อาคารผลิต 2.2', 'xl')}
+    ${L(195, 378, 'อาคาร', 'sm')}${L(195, 396, 'PILOT PLANT', 'sm')}${L(860, 104, 'ห้องเย็น', 'xl')}${L(832, 413, 'WH', 'xl')}
     ${L(412, 630, 'ห้องธุรการ', 'xs')}${L(467, 631, 'ห้องช่าง', 'xs', ' transform="rotate(-90 467 631)"')}${L(810, 664, 'สโตร์', 'xs')}${L(27, -52, 'ห้องขยะ', 'sm')}
     ${L(299, 785, 'โกดัง', 'lg')}${L(590, 730, 'นอกรั้วโรงงาน', 'sm out-t', ' style="text-anchor:start"')}
     ${L(40, 560, 'คลอง', 'sm water-t', ' transform="rotate(62 40 560)"')}
     ${PILL(267, 568, 'ประตู', 58)}${PILL(1041, -24, 'ประตูหลัง', 86)}${L(313, 643, 'ป้อม', 'xs')}${L(313, 656, 'รปภ.', 'xs')}${L(1048, 35, 'ป้อม รปภ.', 'xs')}
-    <path class="flow" d="M678 96 V58 M668 70 L678 58 L688 70"/>${L(704, 82, 'ทางเข้า-ออก', 'flow-t')}
-    <g class="north" transform="translate(1256,-128)"><circle r="20"/><path d="M0 -13 L7 7 L0 3 L-7 7 Z"/><text y="-26">N</text></g>
-    <g class="sp-legend" transform="translate(1120,96)">
-      <rect class="lg-bg" x="0" y="0" width="166" height="196" rx="10"/>
-      <g transform="translate(16,28)"><path class="w-out" d="M0 0 H30"/><path class="w-in" d="M0 0 H30"/><path class="w-ht" d="M0 0 H30"/><text x="42" y="5">กำแพง</text></g>
-      <g transform="translate(16,64)"><line class="g-ln" x1="0" y1="0" x2="30" y2="0"/><rect class="g-post" x="-5" y="-5" width="10" height="10"/><rect class="g-post" x="25" y="-5" width="10" height="10"/><text x="42" y="5">ประตูรถ</text></g>
-      <g transform="translate(16,100)"><rect class="pk" x="0" y="-11" width="30" height="22"/><text x="42" y="5">ลานจอดรถ</text></g>
-      <g transform="translate(16,136)"><rect class="b" x="0" y="-11" width="30" height="22" rx="2"/><text x="42" y="5">อาคาร</text></g>
-      <g transform="translate(16,172)"><rect class="rd" x="0" y="-11" width="30" height="22"/><line class="cl" x1="2" y1="0" x2="28" y2="0"/><text x="42" y="5">ถนน</text></g>
+    <path class="flow" d="M678 110 V58 M668 70 L678 58 L688 70"/><text class="lb flow-t" x="656" y="84" style="text-anchor:end">ทางเข้า-ออก</text>
+    <g class="north" transform="translate(1256,-188)"><circle r="20"/><path d="M0 -13 L7 7 L0 3 L-7 7 Z"/><text y="-26">N</text></g>
+    <g class="sp-legend" transform="translate(1136,96)">
+      <rect class="lg-bg" x="0" y="0" width="150" height="196" rx="10"/>
+      <g transform="translate(14,28)"><path class="w-out" d="M0 0 H30"/><path class="w-in" d="M0 0 H30"/><path class="w-ht" d="M0 0 H30"/><text x="42" y="5">กำแพง</text></g>
+      <g transform="translate(14,64)"><line class="g-ln" x1="0" y1="0" x2="30" y2="0"/><rect class="g-post" x="-5" y="-5" width="10" height="10"/><rect class="g-post" x="25" y="-5" width="10" height="10"/><text x="42" y="5">ประตูรถ</text></g>
+      <g transform="translate(14,100)"><rect class="pk" x="0" y="-11" width="30" height="22"/><text x="42" y="5">ลานจอดรถ</text></g>
+      <g transform="translate(14,136)"><rect class="bd-r rv" x="0" y="-11" width="30" height="22" rx="2"/><text x="42" y="5">อาคาร</text></g>
+      <g transform="translate(14,172)"><rect class="rd" x="0" y="-11" width="30" height="22"/><line class="cl" x1="2" y1="0" x2="28" y2="0"/><text x="42" y="5">ถนน</text></g>
     </g>`;
   const marks = db.zones.map((z, i) => {
     const Lt = SITE_LOTS[siteKey(z)] || { p: [1100, -120 + i * 60], side: 'l' }, [x, y] = Lt.p, o = occupancy(z, S.vDate, S.vFrom, S.vTo), f = Math.max(0, o.cap - o.used), on = z.id === S.zone;
@@ -617,8 +642,8 @@ function renderSite() {
       <rect class="mk-badge" x="-19" y="-19" width="38" height="38" rx="9"/><text class="mk-p" y="1">P</text>
       <text class="mk-t" x="${lx + 4}" y="-3">${esc(z.name)}</text><text class="mk-s" x="${lx + 4}" y="15"><tspan class="${f ? 'ok' : 'full'}">ว่าง ${f}</tspan> / ${o.cap} ${z.free ? 'คัน' : 'ช่อง'}</text></g>`;
   }).join('');
-  $('siteMap').innerHTML = `<svg class="sp" viewBox="-10 -170 1310 1050" role="img" aria-label="ผังโรงงานและตำแหน่งลานจอด">${world}${marks}
-    <text class="note" x="1203" y="316" text-anchor="middle">ตำแหน่งโดยประมาณ</text><text class="note" x="1203" y="332" text-anchor="middle">ไม่ตามมาตราส่วน</text></svg>`;
+  $('siteMap').innerHTML = `<svg class="sp" viewBox="-10 -230 1310 1110" role="img" aria-label="ผังโรงงานและตำแหน่งลานจอด">${world}${marks}
+    <text class="note" x="1211" y="316" text-anchor="middle">ตำแหน่งโดยประมาณ</text><text class="note" x="1211" y="332" text-anchor="middle">ไม่ตามมาตราส่วน</text></svg>`;
 }
 /* ลานจอดอิสระที่มีผังจริง (ไม่มีเลขช่อง) เช่น ลาน Loft: วางรถชั่วคราวลงช่องตามลำดับ */
 const FREE_PRESETS = {
@@ -660,7 +685,7 @@ function freeLot(z, o) {
     else if (d.t === 'entry') h += `<div class="deco lot-entry" style="${box(d.x, d.y, d.w, d.h)}"></div>`;
     else h += `<div class="deco bldg booth" style="${box(d.x, d.y, d.w, d.h)}"><span>${esc(d.label || '')}</span></div>`;
   });
-  for (let i = 0; i < n; i++) { const p = pos[i]; h += slotHtml(z, { slot: '', temp: o.items[i], idx: i, open: true, later: [] }, { style: box(p.x, p.y, p.o === 'v' ? SW : SL, p.o === 'v' ? SL : SW), cls: `lay o-${p.o} f-${p.f}` }); }
+  for (let i = 0; i < n; i++) { const p = pos[i]; h += slotHtml(z, { slot: '', temp: o.items[i], idx: i, open: true, later: [] }, { style: box(p.x, p.y, p.o === 'v' ? SW : SL, p.o === 'v' ? SL : SW), cls: `lay o-${p.o} f-${p.f}`, free: true }); }
   return { html: h, w: L.w * UNIT, h: L.h * UNIT };
 }
 function lotHtml(z, o) {
@@ -718,6 +743,7 @@ function slotHtml(z, c, pos) {
   const pop = (c.temp && c.temp.id === S.pop) || (c.perm && c.perm.id === S.pop) ? ' pop' : '';
   let inner = `<span class="num">${esc(c.slot || '')}</span>${tg ? `<span class="stag">${tg === 'vip' ? 'VIP' : 'ผบ.'}</span>` : ''}${c.slot ? lblHtml(z, c.slot) : ''}`, label;
   if (c.perm) { inner += `<svg class="car perm${pop}" viewBox="0 0 40 72" aria-hidden="true"><use href="#car"/></svg><span class="tag">${c.slot ? `<i class="tn">${esc(c.slot)}</i>` : ''}<span class="tnm">${tagName(c.perm.name)}</span><small>${esc(c.perm.plate)}</small></span>`; label = `ช่อง ${c.slot} ระยะยาว ${c.perm.name} ทะเบียน ${c.perm.plate}`; }
+  else if (c.temp && pos && pos.free) { inner += `<svg class="car temp${pop}" viewBox="0 0 40 72" aria-hidden="true"><use href="#car"/></svg><span class="tag temp ftag"><span class="tnm"><b class="tnn">${esc(c.temp.plate || '')}</b><i class="tp">${esc(short(String(c.temp.name || '').replace(/^(บจ\.|บริษัท|หจก\.)\s*/, '').replace(/\s*จำกัด.*$/, ''), 9))}</i></span></span>`; label = `${c.temp.name} ${c.temp.plate}`; }
   else if (c.temp) { inner += `<svg class="car temp${pop}" viewBox="0 0 40 72" aria-hidden="true"><use href="#car"/></svg><span class="tag temp">${c.slot ? `<i class="tn">${esc(c.slot)}</i>` : ''}<span class="tnm">${esc(short(firstName(c.temp.name), 12))}</span><small>${esc(c.temp.from)}–${esc(c.temp.to)}</small></span>`; label = `${c.slot ? 'ช่อง ' + c.slot : 'จอดอิสระ'} ชั่วคราว ${c.temp.name} ${c.temp.from}-${c.temp.to}`; }
   else { if (sel) inner += '<i class="ghost"></i>'; label = `${c.slot ? 'ช่อง ' + c.slot : 'ที่ว่าง'} ว่าง${c.later && c.later.length ? ' มีจองช่วงเวลาอื่น' : ''}`; }
   const data = c.perm ? `data-act="sel-perm" data-id="${esc(c.perm.id)}"` : c.temp ? `data-act="sel-temp" data-id="${esc(c.temp.id)}"` : z.free ? `data-act="sel-open" data-idx="${c.idx}"` : `data-act="sel-slot" data-slot="${esc(c.slot)}"`;
@@ -728,7 +754,7 @@ function slotHtml(z, c, pos) {
 function layoutStage() {
   const st = $('stage'), sz = $('sizer'), lot = $('lot'); if (!lot) return;
   const W = lot.offsetWidth, H = lot.offsetHeight, avail = Math.max(260, st.clientWidth - 16);
-  const grow = S.view3d ? 1.22 : 1, minFit = window.innerWidth <= 760 ? 0.45 : 0.3, fit = Math.max(minFit, Math.min(1.15, avail / (W * grow)));   // มือถือไม่ย่อจนกดยาก ให้เลื่อนซ้ายขวาแทน
+  const grow = S.view3d ? 1.22 : 1, minFit = window.innerWidth <= 760 ? 0.62 : 0.3, fit = Math.max(minFit, Math.min(1.15, avail / (W * grow)));   // มือถือไม่ย่อจนกดยาก ให้เลื่อนซ้ายขวาแทน
   const s = fit * S.zoom, k = S.view3d ? Math.cos(52 * Math.PI / 180) * 1.08 : 1;
   lot.style.setProperty('--s', s.toFixed(3));
   sz.style.width = Math.max(avail, W * s * grow + 24) + 'px';
@@ -751,10 +777,11 @@ function renderPanelInner(z, o) {
   if (sel && sel.perm) {
     const r = db.permanent.find(x => x.id === sel.perm); if (!r) { S.sel = null; return renderPanelInner(z, o); }
     p.innerHTML = `<div class="p-slot">${esc(slotOn(r, S.vDate))}</div><div class="p-zone">${esc(zoneName(zoneOn(r, S.vDate)))}${lblHtml(getZone(zoneOn(r, S.vDate)), slotOn(r, S.vDate), 'plbl')}</div>
-      <p style="margin-top:10px"><span class="status st-perm">ช่องประจำ ระยะยาว</span> ${tagOf(getZone(r.zone), r.slot) === 'exec' ? '<span class="status st-exec">ผู้บริหาร</span>' : ''}</p>
-      <dl><dt>ชื่อ</dt><dd>${esc(r.name)}</dd><dt>ทะเบียน</dt><dd>${esc(r.plate)}</dd>${isGuard ? '' : `<dt>รหัสพนักงาน</dt><dd>${esc(r.empId)}</dd>`}
-      ${isGuard ? '' : `<dt>แผนก / ฝ่าย</dt><dd>${esc([r.dept, r.division].filter(Boolean).join(' / ') || '—')}</dd>`}<dt>แก้ไขล่าสุด</dt><dd>${fmtTs(r.updatedAt)}${r.updatedBy ? '<br><span class="muted">' + esc(r.updatedBy) + '</span>' : ''}</dd></dl>${planBox(getZone(zoneOn(r, S.vDate)), slotOn(r, S.vDate), S.vDate)}
-      <div class="p-actions"><button class="btn pri" data-act="edit-perm" data-id="${esc(r.id)}">แก้ไข</button><button class="btn ghost" data-act="toggle-perm" data-id="${esc(r.id)}">คืนช่อง (ลาออก/ย้าย)</button>${histBtn('perm', r.id)}</div>`;
+      <p class="p-st"><span class="status st-perm">ช่องประจำ ระยะยาว</span> ${tagOf(getZone(r.zone), r.slot) === 'exec' ? '<span class="status st-exec">ผู้บริหาร</span>' : ''}</p>
+      <dl><dt>ชื่อ</dt><dd>${esc(r.name)}</dd><dt>ทะเบียน</dt><dd>${esc(r.plate)}</dd>${isGuard ? '' : `<dt>รหัส</dt><dd>${esc(r.empId)}</dd>`}
+      ${isGuard ? '' : `<dt>แผนก</dt><dd>${esc([...new Set([r.dept, r.division].filter(Boolean))].join(' / ') || '—')}</dd>`}</dl>${planBox(getZone(zoneOn(r, S.vDate)), slotOn(r, S.vDate), S.vDate)}
+      <div class="p-actions"><button class="btn pri" data-act="edit-perm" data-id="${esc(r.id)}">แก้ไข</button><button class="btn ghost" data-act="toggle-perm" data-id="${esc(r.id)}">คืนช่อง</button>${histBtn('perm', r.id)}</div>
+      <p class="p-upd">แก้ไขล่าสุด ${fmtTs(r.updatedAt)}${r.updatedBy ? ' · ' + esc(r.updatedBy) : ''}</p>`;
     return;
   }
   if (sel && sel.temp) {
@@ -1110,7 +1137,7 @@ function renderCheck() {
   const cell = (sl, pos) => {
     const ex = expectedAt(z, sl, S.cDate), r = res(sl), sel = S.cSlot && normSlot(S.cSlot) === normSlot(sl), tg = tagOf(z, sl);
     return `<button type="button" class="slot ${pos ? pos.cls : ''} ck ck-${r || 'todo'} ${ex ? 'owned' : ''} ${sel ? 'sel' : ''} ${tg ? 't-' + tg : ''}" data-act="ck-sel" data-slot="${esc(sl)}" ${pos ? `style="${pos.style}"` : ''} aria-label="${esc(`ช่อง ${sl} ${ex ? ex.name : 'ไม่มีเจ้าของ'} ${ckLabel(r, !!ex)}`)}" aria-pressed="${sel}">
-      <span class="num">${esc(sl)}</span>${tg ? `<span class="stag">${tg === 'vip' ? 'VIP' : 'ผบ.'}</span>` : ''}${lblHtml(z, sl)}<span class="ckm">${r === 'ok' ? '✓' : r === 'none' ? (ex ? '✕' : '–') : r === 'wrong' ? '!' : ''}</span>${ex ? `<span class="cko">${esc(short(khun(firstName(ex.name)), 10))}</span>` : ''}</button>`;
+      <span class="num">${esc(sl)}</span>${tg ? `<span class="stag">${tg === 'vip' ? 'VIP' : 'ผบ.'}</span>` : ''}${lblHtml(z, sl)}<span class="ckm">${r === 'ok' ? '✓' : r === 'none' ? (ex ? '✕' : '–') : r === 'wrong' ? '!' : ''}</span>${ex ? `<span class="cko">${esc(short(firstName(ex.name), 14))}</span>` : ''}</button>`;
   };
   let lot;
   if (validLayout(z)) { const r = customLot(z, cell); lot = `<div class="lot custom" id="cLot" style="width:${r.w}px;height:${r.h}px">${r.html}</div>`; }
@@ -1278,7 +1305,7 @@ function barChart(items, o = {}) {
     const h = Math.max(x.v ? 2 : 0, (H - y(x.v) + T - T)), top = y(x.v);
     return `<g class="b ${x.cls || ''}"><rect x="${X}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H - top).toFixed(1)}" rx="3"><title>${esc(x.tip || '')}</title></rect>${showVal && (x.v || o.pct) ? `<text x="${cx.toFixed(1)}" y="${(top - 6).toFixed(1)}" text-anchor="middle" class="bv">${o.pct ? Math.round(x.v) + '%' : x.v}</text>` : ''}</g>${lab}`;
   }).join('');
-  return `<svg class="bchart" viewBox="0 0 ${W} ${H + 28}" role="img" aria-label="${esc(o.label || '')}">${grid}${bars}<text x="4" y="12" class="ax unit">${esc(o.unit || '')}</text></svg>`;
+  return `<div class="bchart-wrap"><svg class="bchart" viewBox="0 0 ${W} ${H + 28}" role="img" aria-label="${esc(o.label || '')}">${grid}${bars}<text x="4" y="12" class="ax unit">${esc(o.unit || '')}</text></svg></div>`;
 }
 const chartCard = (title, sub, svg, legend = '', cls = 'wide') => `<div class="card ${cls} chart-card"><h3>${title}</h3>${sub ? `<p class="chart-sub">${sub}</p>` : ''}${legend ? `<div class="legend chart-lg">${legend}</div>` : ''}<div class="chart">${svg}</div></div>`;
 const dLab = d => `${+d.slice(8)} ${TH_MON[+d.slice(5, 7) - 1]}`;   // 16 พ.ย.
@@ -1621,6 +1648,8 @@ function exportRateXlsx() {
 /* ---------- ข้อมูล ---------- */
 function renderData() {
   document.querySelectorAll('[data-dtab]').forEach(b => b.setAttribute('aria-selected', b.dataset.dtab === S.dtab));
+  if (S.dtab === 'reg') return renderReg();
+  $('dCards').hidden = true; $('dZone').hidden = false;
   const perm = S.dtab === 'perm', chk = S.dtab === 'chk';
   const zlist = perm ? db.zones.filter(isPermZone) : chk ? db.zones.filter(z => !z.free) : db.zones, zv = $('dZone').value;
   $('dZone').innerHTML = '<option value="">ทุกสถานที่</option>' + zlist.map(z => `<option value="${esc(z.id)}">${esc(z.name)}</option>`).join(''); $('dZone').value = zlist.some(z => z.id === zv) ? zv : '';
@@ -1671,6 +1700,94 @@ function dataRowsTemp(q, fz, f) {
     .sort((a, b) => (b.date + b.from).localeCompare(a.date + a.from));
 }
 
+/* ---------- ทะเบียนรถมีสิทธิ์เข้าลาน (ฐานข้อมูลทะเบียน PILOT) ---------- */
+const REG_ST = { ok: ['ใช้งานปกติ', 'st-perm'], soon: ['ใกล้หมดอายุ', 'st-soon'], exp: ['หมดอายุแล้ว', 'st-cancelled'], wait: ['ยังไม่เริ่ม', 'st-upcoming'] };
+const regSt = r => { const d = today(); if (r.dIn && r.dIn > d) return 'wait'; if (r.dOut && r.dOut < d) return 'exp'; if (r.dOut && r.dOut <= addDays(d, 30)) return 'soon'; return 'ok'; };
+const regZone = () => (db.zones.find(z => /pilot/i.test(z.name)) || db.zones.find(isPermZone) || db.zones[0] || {}).id || '';
+const regLeft = r => r.dOut ? Math.round((toD(r.dOut) - toD(today())) / 864e5) : null;
+function regRows(q, f) {
+  return db.reg.filter(r => (!f || regSt(r) === f) && (!q || [r.name, r.plate, r.note].join(' ').toLowerCase().includes(q) || normPlate(r.plate).toLowerCase().includes(normPlate(q).toLowerCase())))
+    .sort((a, b) => (a.no || 9e9) - (b.no || 9e9) || String(a.name).localeCompare(String(b.name), 'th', { numeric: true }));
+}
+function renderReg() {
+  $('dZone').hidden = true;
+  const sv = $('dStatus').value, so = [['', 'ทุกสถานะ'], ['ok', 'ใช้งานปกติ'], ['soon', 'ใกล้หมดอายุ (≤30 วัน)'], ['exp', 'หมดอายุแล้ว'], ['wait', 'ยังไม่เริ่ม']];
+  $('dStatus').innerHTML = so.map(([v, l]) => `<option value="${v}">${l}</option>`).join(''); $('dStatus').value = so.some(o => o[0] === sv) ? sv : '';
+  $('dNew').textContent = '+ เพิ่มทะเบียนรถ'; $('dImport').hidden = false;
+  const q = $('dQ').value.trim().toLowerCase(), f = $('dStatus').value, rows = regRows(q, f);
+  const n = { ok: 0, soon: 0, exp: 0, wait: 0 }; db.reg.forEach(r => n[regSt(r)]++);
+  const tot = db.reg.length, pct = tot ? Math.round((n.ok + n.soon) / tot * 100) : 0;
+  const card = (k, num, title, sub, ico, cls) => `<button type="button" class="rcard ${cls} ${f === k ? 'on' : ''}" data-act="reg-filter" data-f="${k}"><span class="rc-t">${title}</span><span class="rc-i">${ico}</span><b class="rc-n">${num}<small> คัน</small>${k === 'ok' && tot ? `<em>${pct}%</em>` : ''}</b><span class="rc-s">${sub}</span></button>`;
+  $('dCards').hidden = false;
+  $('dCards').innerHTML = card('', tot, 'รถทั้งหมดในระบบ', `ลาน ${esc(zoneName(regZone()) || 'PILOT')} · กดเพื่อดูทั้งหมด`, '🚗', 'c-all')
+    + card('ok', n.ok + n.soon, 'ใช้งานปกติ (ACTIVE)', 'ยังไม่หมดอายุ เข้าลานได้', '✓', 'c-ok')
+    + card('soon', n.soon, 'ใกล้หมดอายุ (≤30 วัน)', 'ควรแจ้งเตือนต่ออายุสิทธิ์', '⏱', 'c-soon')
+    + card('exp', n.exp, 'หมดอายุแล้ว (EXPIRED)', 'ระงับสิทธิ์เข้าลาน', '✕', 'c-exp');
+  $('dCount').textContent = `${rows.length} รายการ${n.wait ? ` · ยังไม่เริ่ม ${n.wait}` : ''}`;
+  $('dTable').innerHTML = `<thead><tr><th>ลำดับ</th><th>ชื่อ / สมาชิก</th><th>ทะเบียนรถ</th><th>วันที่เริ่ม (IN)</th><th>วันหมดอายุ (OUT)</th><th>สถานะ</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>` +
+    (rows.map((r, i) => { const st = regSt(r), left = regLeft(r); return `<tr class="${st === 'exp' ? 'rg-exp' : ''}"><td class="nw">${r.no || i + 1}</td><td><b>${esc(r.name)}</b></td><td class="nw"><span class="plate-pill">${esc(r.plate)}</span></td>
+      <td class="nw">${r.dIn ? fmtDate(r.dIn) : '—'}</td><td class="nw">${r.dOut ? fmtDate(r.dOut) : 'ไม่กำหนด'}${st === 'soon' ? `<div class="sub" style="color:#B4471A">อีก ${left} วัน</div>` : st === 'exp' ? `<div class="sub">เลยมา ${-left} วัน</div>` : ''}</td>
+      <td class="keep nw"><span class="status ${REG_ST[st][1]}">${REG_ST[st][0]}</span></td><td class="sub">${esc(r.note || '')}</td>
+      <td class="keep nw"><button class="link" data-act="reg-edit" data-id="${esc(r.id)}">แก้ไข</button><button class="link danger" data-act="reg-del" data-id="${esc(r.id)}">ลบ</button></td></tr>`; }).join('')
+    || `<tr><td colspan="8" class="muted" style="text-align:center;padding:28px">${tot ? 'ไม่มีรายการตามตัวกรองนี้' : 'ยังไม่มีทะเบียนรถ กด "+ เพิ่มทะเบียนรถ" หรือ "นำเข้า Excel / CSV" (คอลัมน์ ชื่อ, ทะเบียน, IN, OUT)'}</td></tr>`) + '</tbody>';
+}
+async function editReg(id) {
+  const r = id ? db.reg.find(x => x.id === id) : null; if (id && !r) return;
+  let cur = r ? { ...r } : { name: '', plate: '', dIn: today(), dOut: '', note: '' };
+  const mk = c => `<div class="grid2 regf"><label class="f span2"><span>ชื่อ / สมาชิก</span><input id="rgName" maxlength="80" value="${esc(c.name || '')}"></label>
+    <label class="f span2"><span>ทะเบียนรถ</span><input id="rgPlate" maxlength="20" value="${esc(c.plate || '')}" placeholder="เช่น 3กญ3532"></label>
+    <label class="f"><span>วันที่เริ่ม (IN)</span><input id="rgIn" type="date" value="${esc(c.dIn || '')}"></label>
+    <label class="f"><span>วันหมดอายุ (OUT)</span><input id="rgOut" type="date" value="${esc(c.dOut || '')}"></label>
+    <label class="f span2"><span>หมายเหตุ <small class="muted">(ไม่ใส่ก็ได้)</small></span><input id="rgNote" maxlength="120" value="${esc(c.note || '')}"></label>
+    <p class="muted span2" style="margin:0;font-size:.85rem">สถานะคิดให้อัตโนมัติจากวันหมดอายุ: เหลือ ≤30 วัน = ใกล้หมดอายุ, เลยวันแล้ว = หมดอายุ</p><p class="err span2" id="rgErr" hidden></p></div>`;
+  for (;;) {
+    if (!await openDialog({ title: r ? 'แก้ไขทะเบียนรถ' : 'เพิ่มทะเบียนรถ', body: mk(cur), buttons: [{ label: 'ยกเลิก', value: false }, { label: 'บันทึก', value: true, cls: 'pri' }] })) return;
+    const v = { name: $('rgName').value.trim(), plate: $('rgPlate').value.trim(), dIn: $('rgIn').value, dOut: $('rgOut').value, note: $('rgNote').value.trim() };
+    const dup = db.reg.find(x => x.id !== (r && r.id) && normPlate(x.plate) === normPlate(v.plate));
+    const err = !v.name ? 'ใส่ชื่อ' : !v.plate ? 'ใส่ทะเบียนรถ' : dup ? `ทะเบียน ${v.plate} มีอยู่แล้ว (${dup.name})` : v.dIn && v.dOut && v.dOut < v.dIn ? 'วันหมดอายุต้องไม่ก่อนวันที่เริ่ม' : '';
+    if (err) { cur = v; await info('บันทึกไม่ได้', err); continue; }
+    const rec = { ...(r || { id: uid(), zone: regZone(), no: Math.max(0, ...db.reg.map(x => +x.no || 0)) + 1 }), ...v };
+    if (r) touch(rec, 'แก้ไขทะเบียนรถ'); else stamp(rec, 'เพิ่มทะเบียนรถ');
+    await put('reg', rec).catch(() => {}); return toast(r ? 'บันทึกแล้ว' : 'เพิ่มทะเบียนรถแล้ว');
+  }
+}
+const xDate = v => {   // วันที่จาก Excel: Date / เลขวันที่ / 31/12/2026 / 31/12/2569 / 2026-12-31
+  if (v == null || v === '') return '';
+  if (v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`;
+  if (typeof v === 'number' && v > 20000 && v < 80000) return addDays('1899-12-30', Math.floor(v));
+  const t = String(v).trim(); let m;
+  if ((m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) { const y = +m[1] > 2400 ? +m[1] - 543 : +m[1]; return `${y}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`; }
+  if ((m = t.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/))) { let y = +m[3]; if (y < 100) y += y > 60 ? 2500 : 2000; if (y > 2400) y -= 543; return `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`; }
+  return '';
+};
+function importReg(sheets) {
+  const st = { ops: [], added: 0, updated: 0, skipped: [], sheets: [] }, list = db.reg.map(r => ({ ...r })), zid = regZone();
+  const RE = [['plate', /ทะเบียน|plate/i], ['dIn', /^in\b|เริ่ม|start|วันเข้า/i], ['dOut', /^out\b|หมด|end|expire|วันออก/i], ['no', /ลำดับ|^no\.?$|^#$/i], ['note', /หมายเหตุ|note|remark/i], ['name', /ชื่อ|name|สมาชิก|member/i]];
+  sheets.forEach(sh => {
+    let hi = -1, map = null;
+    for (let i = 0; i < Math.min(sh.rows.length, 15); i++) { const m = {}; (sh.rows[i] || []).forEach((h, k) => { const t = String(h ?? '').trim(); if (!t) return; for (const [f, re] of RE) if (m[f] == null && re.test(t)) { m[f] = k; break; } }); if (m.plate != null && (m.name != null || m.dOut != null)) { hi = i; map = m; break; } }
+    if (hi < 0) { st.sheets.push(`${sh.name}: ไม่พบหัวตาราง (ต้องมีคอลัมน์ ทะเบียน และ ชื่อ หรือ OUT)`); return; }
+    let cnt = 0;
+    for (let i = hi + 1; i < sh.rows.length; i++) {
+      const row = sh.rows[i] || [], g = f => map[f] != null ? row[map[f]] : '', plate = String(g('plate') ?? '').trim(), name = String(g('name') ?? '').trim();
+      if (!plate && !name) continue;
+      const where = `${sh.name} แถว ${i + 1}`;
+      if (!plate) { st.skipped.push(`${where}: ไม่มีทะเบียน`); continue; }
+      const dIn = xDate(g('dIn')), dOut = xDate(g('dOut'));
+      if (map.dOut != null && String(g('dOut') ?? '').trim() && !dOut) { st.skipped.push(`${where}: อ่านวันหมดอายุไม่ได้ (${g('dOut')})`); continue; }
+      const ex = list.find(x => normPlate(x.plate) === normPlate(plate));
+      const rec = { ...(ex || { id: uid(), zone: zid }), name: name || (ex && ex.name) || plate, plate, dIn: dIn || (ex && ex.dIn) || '', dOut: dOut || (ex && ex.dOut) || '' };
+      const no = parseInt(g('no'), 10); if (no > 0) rec.no = no;
+      const note = String(g('note') ?? '').trim(); if (note) rec.note = note;
+      if (ex) { touch(rec, 'อัปเดตจากไฟล์นำเข้า'); list[list.indexOf(ex)] = rec; st.updated++; } else { stamp(rec, 'นำเข้าจากไฟล์'); list.push(rec); st.added++; }
+      st.ops.push({ kind: 'reg', rec }); cnt++;
+    }
+    st.sheets.push(`${sh.name}: อ่านได้ ${cnt} คัน`);
+  });
+  const seen = new Map(); st.ops.forEach(o => seen.set(o.rec.id, o)); st.ops = [...seen.values()];
+  return st;
+}
+
 /* ---------- CSV / Excel ---------- */
 const csvCell = v => { v = String(v ?? ''); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };   // กันสูตร Excel แฝง
 const toCSV = lines => '﻿' + lines.map(r => r.map(csvCell).join(',')).join('\r\n');
@@ -1685,6 +1802,7 @@ function exportData() {
     dataRowsChk(q, fz, f).forEach(({ c }) => sortSlots(Object.values(c.items || {}).filter(i => i && i.r).map(i => i.slot)).forEach(sl => { const it = c.items[ckKey(sl)]; rows.push([dmy(c.date), SHIFTS[ckShiftOf(c)].name, zoneName(c.zone), sl, it.exp ? it.exp.name : '', it.exp ? it.exp.plate : '', ckLabel(it.r, !!it.exp), it.seen || '', it.note || '', it.by || '', it.acct || '', fmtTs(it.at)]); }));
     return download(`ประวัติตรวจเช็ค-${today()}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
   }
+  if (S.dtab === 'reg') return download(`ทะเบียนรถ-${today()}.csv`, toCSV([['ลำดับ', 'ชื่อ', 'ทะเบียน', 'IN', 'OUT', 'สถานะ', 'หมายเหตุ']].concat(regRows(q, f).map((r, i) => [r.no || i + 1, r.name, r.plate, r.dIn ? dmy(r.dIn) : '', r.dOut ? dmy(r.dOut) : '', REG_ST[regSt(r)][0], r.note || '']))), 'text/csv;charset=utf-8');
   if (S.dtab === 'perm') download(`ช่องประจำ-${today()}.csv`, toCSV([['ชื่อ-นามสกุล', 'รหัสพนักงาน', 'ทะเบียนรถ', 'แผนก', 'ฝ่าย', 'สถานที่', 'หมายเลขช่อง', 'สถานะ', 'แก้ไขล่าสุด', 'แก้ไขโดย']]
     .concat(dataRowsPerm(q, fz, f).map(p => [p.name, p.empId, p.plate, p.dept, p.division, zoneName(p.zone), p.slot, p.active ? 'ใช้งานอยู่' : 'คืนช่องแล้ว', fmtTs(p.updatedAt), p.updatedBy || '']))), 'text/csv;charset=utf-8');
   else download(`จองชั่วคราว-${today()}.csv`, toCSV([['วันที่เริ่ม', 'ถึงวันที่', 'เวลาเข้า', 'เวลาออก', 'ชื่อ/บริษัท', 'ทะเบียนรถ', 'สถานที่', 'ช่อง', 'ประเภท', 'หมายเหตุ', 'สถานะ', 'บันทึกโดย', 'บันทึกเมื่อ']]
@@ -1751,15 +1869,15 @@ async function importFile(f) {
     if (ext === 'csv') sheets = [{ name: f.name.replace(/\.csv$/i, ''), rows: parseCSV(await f.text()) }];
     else {
       let X; try { X = await loadXLSX(); } catch (e) { return info('อ่านไฟล์ Excel ไม่ได้', 'โหลดตัวอ่าน Excel ไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วลองใหม่ หรือบันทึกเป็น CSV UTF-8 แล้วนำเข้าแทน'); }
-      const wb = X.read(await f.arrayBuffer(), { type: 'array' });
-      sheets = wb.SheetNames.map(n => ({ name: n, rows: X.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' }) }));
+      const reg = S.dtab === 'reg', wb = X.read(await f.arrayBuffer(), { type: 'array' });   // วันที่เป็นเลขวันที่ของ Excel (ไม่เพี้ยนตามเขตเวลา)
+      sheets = wb.SheetNames.map(n => ({ name: n, rows: X.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: reg, defval: '' }) }));
     }
-    const st = importRows(sheets);
+    const st = S.dtab === 'reg' ? importReg(sheets) : importRows(sheets);
     const skip = st.skipped.length ? `<p style="margin-top:10px"><b>ข้าม ${st.skipped.length} แถว</b></p><ul class="muted" style="max-height:160px;overflow:auto">${st.skipped.slice(0, 40).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '';
     const body = `<ul class="muted">${st.sheets.map(x => `<li>${esc(x)}</li>`).join('')}</ul><p style="margin-top:10px">เพิ่มใหม่ <b>${st.added}</b> อัปเดต <b>${st.updated}</b>${st.newSlots ? ` เพิ่มหมายเลขช่องใหม่ <b>${st.newSlots}</b>` : ''}</p>${skip}`;
     if (!st.added && !st.updated) return openDialog({ title: 'ไม่มีข้อมูลที่นำเข้าได้', body, buttons: [{ label: 'ปิด', value: true, cls: 'pri' }] });
     if (!await openDialog({ title: 'ตรวจสอบก่อนนำเข้า', body, buttons: [{ label: 'ยกเลิก', value: false }, { label: 'นำเข้าข้อมูล', value: true, cls: 'pri' }] })) return;
-    await writeOps(st.ops); await rebuildLocks().catch(console.error);
+    await writeOps(st.ops); if (S.dtab !== 'reg') await rebuildLocks().catch(console.error);
     toast(`นำเข้าแล้ว เพิ่ม ${st.added} อัปเดต ${st.updated}`);
   } catch (err) { console.error(err); toast('อ่านไฟล์ไม่สำเร็จ ตรวจว่าเป็นไฟล์ .xlsx หรือ .csv'); }
 }
@@ -1780,7 +1898,7 @@ function renderSet() {
       <label>ชื่อสถานที่<input data-f="name" value="${esc(z.name)}" maxlength="60" ${isAdmin ? '' : 'disabled'}></label>
       ${z.free ? `<label>ความจุ (คัน) จอดอิสระ ไม่มีเลขช่อง<input data-f="cap" type="number" min="0" max="9999" value="${z.capacity}" ${isAdmin ? '' : 'disabled'}></label>` : `<label>หมายเลขช่อง<input data-f="slots" value="${esc(slotsText(z.slots))}" ${isAdmin ? '' : 'disabled'}></label>`}
       ${validLayout(z) ? `<label>ผัง<input value="ตามแบบฟอร์มตรวจเช็ค" disabled></label>` : `<label>ช่องต่อแถว<input data-f="per" type="number" min="2" max="40" value="${z.perRow}" ${dis}></label>`}</div>
-      <div class="zf" style="margin-top:8px">${z.free ? '' : `<label>ช่องลูกค้า VIP<input data-f="vip" value="${esc(tagTxt(z, 'vip'))}" placeholder="เช่น 1-4" ${dis}></label><label>ช่องผู้บริหาร<input data-f="exec" value="${esc(tagTxt(z, 'exec'))}" placeholder="เช่น 5-6" ${dis}></label><label>ช่องเฉพาะแผนก (ป้ายบอกเป็นของใคร)<input data-f="lbl" value="${esc(labelsText(z))}" placeholder="เช่น 14-15=Serway ปลา; 16-17=PD" ${dis}></label>`}
+      <div class="zf" style="margin-top:8px">${z.free ? '' : `<label>ช่องลูกค้า VIP<input data-f="vip" value="${esc(tagTxt(z, 'vip'))}" placeholder="เช่น 1-4" ${dis}></label><label>ช่องผู้บริหาร<input data-f="exec" value="${esc(tagTxt(z, 'exec'))}" placeholder="เช่น 5-6" ${dis}></label><label class="lblf">ช่องเฉพาะแผนก (ป้ายบอกว่าเป็นของแผนกไหน)<input data-f="lbl" value="${esc(labelsText(z))}" placeholder="เช่น 14-15=Survey ปลา; 16-17=PD" ${dis}></label>`}
       <label>คำอธิบายตำแหน่ง<input data-f="note" value="${esc(z.note || '')}" maxlength="80" placeholder="เช่น หลังอาคาร Pilot Plant" ${dis}></label>
       <label>ลิงก์ Google Maps<input data-f="map" value="${esc(z.mapUrl || '')}" placeholder="https://maps.app.goo.gl/..." ${dis}></label></div>
       <div class="zfoot"><span>${capOf(z)} ${z.free ? 'คัน จอดอิสระ รับรถชั่วคราว' : 'ช่อง'}${isPermZone(z) ? ' รับช่องประจำ' : ''} แก้ไขล่าสุด ${fmtTs(z.updatedAt)}</span>
@@ -1797,7 +1915,7 @@ function renderSet() {
   const backup = `<div class="card"><h3>สำรองข้อมูล</h3><p class="muted">ดาวน์โหลดไฟล์สำรองเก็บไว้เป็นระยะ ไฟล์มีข้อมูลส่วนบุคคลของพนักงาน เก็บในที่ปลอดภัย</p>
     <div class="row-gap"><button class="btn" data-act="backup">ดาวน์โหลดไฟล์สำรอง</button>${isAdmin ? '<button class="btn ghost" data-act="restore">กู้คืนจากไฟล์สำรอง</button><button class="btn ghost" data-act="relock">ตรวจดัชนีกันจองชน</button>' : ''}</div></div>`;
   const trash = db.trash.slice().sort((a, b) => b.deletedAt - a.deletedAt);
-  const TT = { perm: 'ช่องประจำ', temp: 'จองชั่วคราว', zone: 'สถานที่' };
+  const TT = { perm: 'ช่องประจำ', temp: 'จองชั่วคราว', zone: 'สถานที่', reg: 'ทะเบียนรถ' };
   const tr = `<div class="card wide"><h3>ถังขยะ (${trash.length})</h3><p class="muted">รายการที่ลบเก็บไว้ 30 วัน กู้คืนได้ตลอด ครบกำหนดแล้วระบบลบถาวรเอง</p>
     ${trash.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>ประเภท</th><th>รายการ</th><th>ลบเมื่อ</th><th>ลบถาวรใน</th><th></th></tr></thead><tbody>${trash.map(x => {
       const it = x.item || {}, left = Math.max(0, Math.ceil((x.deletedAt + TRASH_MS - Date.now()) / 864e5));
@@ -1840,7 +1958,7 @@ async function act(b) {
     case 'ck-open': { const c = db.checks.find(x => x.id === id); if (c) { S.cZone = c.zone; S.cDate = c.date; S.cShift = ckShiftOf(c); S.cSlot = null; showTab('chk'); } return; }
     case 'perm-here': return openSheet({ type: 'perm', zone: S.zone, slot: S.sel.slot });
     case 'new-temp': return openSheet({ type: 'temp', zone: S.tab === 'today' && S.tZone ? S.tZone : undefined, date: S.tab === 'today' ? S.tDate : S.vDate, from: S.tab === 'today' ? '08:00' : S.vFrom, to: S.tab === 'today' ? '17:00' : S.vTo });
-    case 'new-perm-or-temp': if (S.dtab === 'chk') { S.cDate = today(); S.cSlot = null; return showTab('chk'); } return S.dtab === 'perm' ? openSheet({ type: 'perm' }) : openSheet({ type: 'temp', date: today(), from: '08:00', to: '17:00' });
+    case 'new-perm-or-temp': if (S.dtab === 'reg') return editReg(); if (S.dtab === 'chk') { S.cDate = today(); S.cSlot = null; return showTab('chk'); } return S.dtab === 'perm' ? openSheet({ type: 'perm' }) : openSheet({ type: 'temp', date: today(), from: '08:00', to: '17:00' });
     case 'close-sheet': return closeSheet();
     case 'dpick': { const d0 = $('bDate').value || today(); $('bDateTo').value = b.dataset.d === '0' ? '' : dpickTo(b, d0); if (b.dataset.d === '0') sheetWd = []; return refreshSheetSlots(); }
     case 'wpick': { const w = +b.dataset.w; sheetWd = sheetWd.includes(w) ? sheetWd.filter(x => x !== w) : sheetWd.concat(w); return refreshSheetSlots(); }
@@ -1880,6 +1998,14 @@ async function act(b) {
     }
     case 'seed-zones': return seedZones();
     case 'export-data': return exportData();
+    case 'reg-edit': return editReg(id);
+    case 'reg-filter': $('dStatus').value = b.dataset.f; return renderData();
+    case 'reg-del': {
+      const r = db.reg.find(x => x.id === id); if (!r) return;
+      if (!await askConfirm(`ย้ายทะเบียน <b>${esc(r.plate)}</b> (${esc(r.name)}) ไปถังขยะ? กู้คืนได้ภายใน 30 วัน`, 'ย้ายไปถังขยะ', true, 'ลบทะเบียนรถ')) return;
+      await writeOps([{ kind: 'trash', rec: { id: uid(), type: 'reg', item: JSON.parse(JSON.stringify(r)), deletedAt: Date.now(), deletedBy: by(), zoneName: zoneName(r.zone) } }, { del: r.id }]).catch(() => {});
+      return toast('ย้ายไปถังขยะแล้ว');
+    }
     case 'export-sum': return exportSum();
     case 'rate-xlsx': return exportRateXlsx();
     case 'stab': S.stab = b.dataset.s; return renderSum();
@@ -1889,7 +2015,7 @@ async function act(b) {
     case 'per-view': perState().view = b.dataset.v; return renderPeriod();
     case 'per-xlsx': return exportPeriodXlsx();
     case 'import': return $('importFile').click();
-    case 'backup': return download(`ที่จอดรถ-สำรอง-${today()}.json`, JSON.stringify({ app: 'parking', at: Date.now(), zones: db.zones, permanent: db.permanent, temp: db.temp, trash: db.trash }, null, 2), 'application/json');
+    case 'backup': return download(`ที่จอดรถ-สำรอง-${today()}.json`, JSON.stringify({ app: 'parking', at: Date.now(), zones: db.zones, permanent: db.permanent, temp: db.temp, trash: db.trash, reg: db.reg, checks: db.checks }, null, 2), 'application/json');
     case 'restore': return $('restoreFile').click();
     case 'relock': try { await rebuildLocks(); toast('ตรวจและสร้างดัชนีใหม่แล้ว'); } catch (e) { writeErr(e); } return;
     case 'restore-trash': return restoreTrash(id);
@@ -1979,6 +2105,10 @@ async function restoreTrash(id) {
   const x = db.trash.find(t => t.id === id); if (!x) return;
   const it = JSON.parse(JSON.stringify(x.item));
   try {
+    if (x.type === 'reg') {
+      if (db.reg.some(r => normPlate(r.plate) === normPlate(it.plate))) return toast('มีทะเบียนนี้อยู่แล้ว');
+      touch(it, 'กู้คืนจากถังขยะ'); await writeOps([{ kind: 'reg', rec: it }, { del: id }]); return toast('กู้คืนแล้ว');
+    }
     if (x.type === 'zone') {
       if (db.zones.some(z => z.name.toLowerCase() === it.name.toLowerCase())) return toast('มีสถานที่ชื่อนี้อยู่แล้ว เปลี่ยนชื่อสถานที่เดิมก่อน');
       touch(it, 'กู้คืนจากถังขยะ'); it.ord = db.zones.length; await writeOps([{ kind: 'zone', rec: it }, { del: id }]);
@@ -1998,9 +2128,9 @@ async function restoreBackup(f) {
     if (!Array.isArray(d.zones) || !Array.isArray(d.permanent) || !Array.isArray(d.temp)) throw 0;
     if (!await askConfirm(`กู้คืนจากไฟล์ ${esc(f.name)}? ข้อมูลปัจจุบันทั้งหมดจะถูกแทนที่ และทุกคนจะเห็นทันที (สถานที่ ${d.zones.length} ช่องประจำ ${d.permanent.length} จองชั่วคราว ${d.temp.length})`, 'กู้คืน', true, 'กู้คืนข้อมูลทั้งหมด')) return;
     const clean = (r, i) => { r = { ...r }; r.id = String(r.id || uid()).replace(/[\/.#$\[\]]/g, '_').slice(0, 120); if (i != null) r.ord = i; return r; };
-    const ops = [...docs.keys()].map(id => ({ del: id }));
+    const keepChk = !Array.isArray(d.checks), ops = [...docs.entries()].filter(([, v]) => !(keepChk && v.docKind === 'check') && !(!Array.isArray(d.reg) && v.docKind === 'reg')).map(([id]) => ({ del: id }));   // ไฟล์สำรองรุ่นเก่าไม่มีผลตรวจ/ทะเบียน: เก็บของเดิมไว้
     d.zones.forEach((z, i) => ops.push({ kind: 'zone', rec: clean(z, i) })); d.permanent.forEach(p => ops.push({ kind: 'perm', rec: clean(p) }));
-    d.temp.forEach(t => ops.push({ kind: 'temp', rec: clean(t) })); (d.trash || []).forEach(t => ops.push({ kind: 'trash', rec: clean(t) }));
+    d.temp.forEach(t => ops.push({ kind: 'temp', rec: clean(t) })); (d.trash || []).forEach(t => ops.push({ kind: 'trash', rec: clean(t) })); (d.reg || []).forEach(t => ops.push({ kind: 'reg', rec: clean(t) })); (d.checks || []).forEach(t => ops.push({ kind: 'check', rec: clean(t) }));
     const last = new Map(); ops.forEach(o => last.set(o.del || o.rec.id, o));   // ลบก่อนแล้วเขียนทับด้วยรายการในไฟล์
     await writeOps([...last.values()]); await rebuildLocks().catch(console.error);
     toast('กู้คืนข้อมูลแล้ว');
