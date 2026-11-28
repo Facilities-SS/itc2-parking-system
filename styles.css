@@ -956,7 +956,7 @@ body{background:
 /* 9. กดซ้ำไม่ให้ตัวหนังสือในผังถูกไฮไลต์ */
 .stage,.stage *{-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 /* 5. เลื่อนลงไปที่ผังลานแล้วไม่โดนแถบเมนูบัง */
-#tab-map .when,#tab-map .map-wrap{scroll-margin-top:84px}
+#tab-map .when,#tab-map .map-wrap,#tab-map .map-tools{scroll-margin-top:76px}
 /* 6, 8. การ์ดรายละเอียดลอยติดจอด้านขวา และกันที่ให้ผัง ไม่บังรถคันไหน */
 @media (min-width:1101px){
   #tab-map .map-wrap{display:flex!important;gap:16px;align-items:flex-start}

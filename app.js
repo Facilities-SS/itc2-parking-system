@@ -773,7 +773,9 @@ function layoutStage() {
   const st = $('stage'), sz = $('sizer'), lot = $('lot'); if (!lot) return;
   const W = lot.offsetWidth, H = lot.offsetHeight, avail = Math.max(260, st.clientWidth - 16);
   const grow = S.view3d ? 1.22 : 1, minFit = window.innerWidth <= 760 ? 0.62 : 0.3, fit = Math.max(minFit, Math.min(1.15, avail / (W * grow)));   // มือถือไม่ย่อจนกดยาก ให้เลื่อนซ้ายขวาแทน
-  const s = fit * S.zoom, k = S.view3d ? Math.cos(52 * Math.PI / 180) * 1.08 : 1;
+  const k = S.view3d ? Math.cos(52 * Math.PI / 180) * 1.08 : 1;
+  const availH = window.innerWidth > 760 ? Math.max(320, window.innerHeight - 150) : 1e9, fitH = (availH - (S.view3d ? 80 : 30)) / (H * k);   // จอคอม: ผังลานพอดีความสูงจอ เห็นทั้งลานโดยไม่ต้องเลื่อน
+  const s = Math.max(minFit, Math.min(fit, fitH)) * S.zoom;
   lot.style.setProperty('--s', s.toFixed(3));
   sz.style.width = Math.max(avail, W * s * grow + 24) + 'px';
   sz.style.height = Math.ceil(H * s * k + (S.view3d ? 80 : 30)) + 'px';
@@ -2203,7 +2205,7 @@ async function changePassword(f) {
 
 /* แตะลานจอดในผังโรงงานแล้วเลื่อนลงไปที่ผังลานนั้นให้เอง */
 function scrollToLot() {
-  const w = document.querySelector('#tab-map .when') || document.querySelector('#tab-map .map-wrap'); if (!w) return;
+  const w = document.querySelector('#tab-map .map-tools') || document.querySelector('#tab-map .map-wrap'); if (!w) return;
   const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   requestAnimationFrame(() => w.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' }));
 }
