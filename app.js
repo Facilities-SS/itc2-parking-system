@@ -593,13 +593,13 @@ function renderSite() {
       <filter id="spSh" x="-10%" y="-10%" width="130%" height="140%"><feDropShadow dx="5" dy="7" stdDeviation="2.6" flood-color="#1B2A36" flood-opacity=".28"/></filter>
       <filter id="spSh2" x="-20%" y="-30%" width="150%" height="180%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#1B2A36" flood-opacity=".22"/></filter>
     </defs>
-    <rect class="land" x="-10" y="-230" width="1310" height="1110"/>
-    <path class="yard" d="M-6 60 H124 V290 H-6 Z"/><path class="yard" d="M-6 290 L8 298 L100 500 L232 504 V593 H288 V674 H1082 V58 H-6 Z"/><rect class="yard" x="-10" y="-170" width="994" height="194"/>
-    <rect class="outside" x="-10" y="702" width="1310" height="178"/><rect x="-10" y="702" width="1310" height="178" fill="url(#spOut)"/>
-    <path class="water-bk" d="M-10 400 C 30 500, 75 600, 122 710 S 150 820, 160 880"/><path class="water-b" d="M-10 400 C 30 500, 75 600, 122 710 S 150 820, 160 880"/><path class="water" d="M-10 400 C 30 500, 75 600, 122 710 S 150 820, 160 880"/>
-    ${RD(62, 22, 1044, 26)}${RD(-10, 678, 1310, 24)}${RD(1086, -230, 20, 252)}${RD(126, 48, 20, 244)}${RD(450, 48, 36, 544)}${RD(664, 48, 28, 626)}${RD(1086, 48, 20, 630)}${RD(146, 262, 144, 22)}${RD(246, 284, 42, 394)}
-    ${CL(66, 35, 1104, 35)}${CL(-10, 690, 1300, 690)}${CL(1096, -228, 1096, 676)}${CL(468, 52, 468, 588)}${CL(678, 52, 678, 670)}${CL(267, 290, 267, 672)}${CL(136, 52, 136, 262)}${CL(150, 273, 286, 273)}
-    ${TROW(-2, 520, 60, 640, 4, 10)}${TROW(1120, -200, 1120, 640, 13, 11)}${TROW(10, -205, 960, -205, 22, 9)}${TROW(440, 740, 580, 740, 4, 11)}${TROW(440, 800, 580, 800, 4, 11)}${TROW(190, 870, 400, 870, 6, 8)}
+    <rect class="land" x="-40" y="-230" width="1340" height="1110"/>
+    <path class="yard" d="M-6 60 H124 V290 H-6 Z"/><path class="yard" d="M-6 290 L8 298 L100 500 L232 504 V593 H288 V674 H1082 V58 H-6 Z"/><rect class="yard" x="-40" y="-170" width="1024" height="194"/>
+    <rect class="outside" x="-40" y="702" width="1340" height="178"/>
+    <path class="water-bk" d="M-70 290 L-10 400 C 30 500, 75 600, 122 710 S 150 820, 162 900"/><path class="water-b" d="M-70 290 L-10 400 C 30 500, 75 600, 122 710 S 150 820, 162 900"/><path class="water" d="M-70 290 L-10 400 C 30 500, 75 600, 122 710 S 150 820, 162 900"/>
+    ${RD(62, 22, 1044, 26)}${RD(-40, 678, 1340, 24)}${RD(1086, -230, 20, 252)}${RD(126, 48, 20, 244)}${RD(450, 48, 36, 544)}${RD(664, 48, 28, 626)}${RD(1086, 48, 20, 630)}${RD(146, 262, 144, 22)}${RD(246, 284, 42, 394)}
+    ${CL(66, 35, 1104, 35)}${CL(-40, 690, 1300, 690)}${CL(1096, -228, 1096, 676)}${CL(468, 52, 468, 588)}${CL(678, 52, 678, 670)}${CL(267, 290, 267, 672)}${CL(136, 52, 136, 262)}${CL(150, 273, 286, 273)}
+    ${TROW(-2, 520, 60, 640, 4, 10)}${TROW(1120, -200, 1120, 640, 13, 11)}${TROW(-20, -205, 960, -205, 23, 9)}${TROW(440, 740, 580, 740, 4, 11)}${TROW(440, 800, 580, 800, 4, 11)}${TROW(190, 870, 400, 870, 6, 8)}
     <g filter="url(#spSh)">
       ${B(-4, -48, 64, 98, '', { flat: 1 })}${B(68, -150, 84, 96)}${B(68, -44, 84, 54, '', { units: [[8, 10, 14, 10], [30, 10, 14, 10]] })}${B(160, -150, 262, 160, '', { units: [[20, 18, 24, 16], [60, 18, 24, 16], [200, 110, 34, 26]] })}${B(500, -150, 158, 162, '', { v: 1, units: [[16, 120, 26, 18]] })}${B(696, -160, 184, 36)}
       <rect class="pond-r" x="696" y="-118" width="184" height="130" rx="3"/>
@@ -618,7 +618,7 @@ function renderSite() {
     ${[[903, -146], [933, -146], [903, -116], [933, -116], [903, -86], [933, -86], [903, -56], [933, -56]].map(([x, y]) => `<circle class="drum" cx="${x + 8}" cy="${y + 8}" r="10"/>`).join('')}
     <rect class="plot" x="160" y="708" width="420" height="150" rx="3"/>
     ${lots}
-    ${WALL('M-10 -180 H984 V -3 H1082')}${WALL('M1082 58 V674 H288 V593')}${WALL('M1000 58 H1082')}${WALL('M-6 60 H124 V290 H-6 Z')}${WALL('M-6 290 L8 298 L100 500 L232 504 V593')}${WALL('M232 593 V676')}
+    ${WALL('M-35 -180 H984 V -3 H1082')}${WALL('M1082 58 V674 H288 V593')}${WALL('M1000 58 H1082')}${WALL('M-6 60 H124 V290 H-6 Z')}${WALL('M-6 290 L8 298 L100 500 L232 504 V593')}${WALL('M232 593 V676')}
     ${GATE(232, 593, 288, 593)}${GATE(1000, -3, 1000, 58)}<rect class="bd-r post" x="988" y="18" width="24" height="34" rx="3"/>
     ${L(291, -66, 'บอยเลอร์', 'lg')}${L(579, -66, 'อาคาร FISH OIL', 'sm')}${L(579, -48, '(ฟิชออย)', 'xs')}${L(788, -142, 'รถยก', 'sm')}${L(788, 22, 'สิ่งแวดล้อม (บ่อบำบัด TUM3)', 'xs')}${L(931, 6, 'ถังปลา', 'xs')}
     ${L(110, -112, 'โกดังเก็บ', 'xs')}${L(110, -96, 'เครื่องจักร', 'xs')}${L(110, -17, 'อาคารสโมค', 'xs')}
@@ -647,8 +647,8 @@ function renderSite() {
       <rect class="mk-badge" x="-19" y="-19" width="38" height="38" rx="9"/><text class="mk-p" y="1">P</text>
       <text class="mk-t" x="${lx + 4}" y="-3">${esc(z.name)}</text><text class="mk-s" x="${lx + 4}" y="15"><tspan class="${f ? 'ok' : 'full'}">ว่าง ${f}</tspan> / ${o.cap} ${z.free ? 'คัน' : 'ช่อง'}</text></g>`;
   }).join('');
-  $('siteMap').innerHTML = `<svg class="sp" viewBox="-10 -230 1310 1110" role="img" aria-label="ผังโรงงานและตำแหน่งลานจอด">${world}${marks}
-    <text class="note" x="1211" y="316" text-anchor="middle">ตำแหน่งโดยประมาณ</text><text class="note" x="1211" y="332" text-anchor="middle">ไม่ตามมาตราส่วน</text></svg>`;
+  $('siteMap').innerHTML = `<svg class="sp" viewBox="-40 -230 1340 1110" role="img" aria-label="ผังโรงงานและตำแหน่งลานจอด"><clipPath id="spClip"><rect x="-40" y="-230" width="1340" height="1110"/></clipPath><g clip-path="url(#spClip)">${world}${marks}
+    <text class="note" x="1211" y="316" text-anchor="middle">ตำแหน่งโดยประมาณ</text><text class="note" x="1211" y="332" text-anchor="middle">ไม่ตามมาตราส่วน</text></g></svg>`;
 }
 /* ลานจอดอิสระที่มีผังจริง (ไม่มีเลขช่อง) เช่น ลาน Loft: วางรถชั่วคราวลงช่องตามลำดับ */
 const FREE_PRESETS = {
